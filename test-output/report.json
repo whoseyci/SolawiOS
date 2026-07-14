@@ -1,0 +1,397 @@
+[
+  {
+    "name": "Sidebar and brand are present",
+    "status": "PASS",
+    "duration": 33
+  },
+  {
+    "name": "All navigation items are rendered",
+    "status": "PASS",
+    "duration": 21
+  },
+  {
+    "name": "Topbar has title, search, and action button",
+    "status": "PASS",
+    "duration": 6
+  },
+  {
+    "name": "No console errors on initial load",
+    "status": "PASS",
+    "duration": 1
+  },
+  {
+    "name": "Dashboard loads with hero, stats, and charts",
+    "status": "PASS",
+    "duration": 271
+  },
+  {
+    "name": "Dashboard shows activity feed",
+    "status": "PASS",
+    "duration": 2
+  },
+  {
+    "name": "Dashboard time range buttons work",
+    "status": "PASS",
+    "duration": 180
+  },
+  {
+    "name": "Members page lists sample members",
+    "status": "PASS",
+    "duration": 253
+  },
+  {
+    "name": "Search filter works",
+    "status": "PASS",
+    "duration": 114
+  },
+  {
+    "name": "Status filter works",
+    "status": "PASS",
+    "duration": 124
+  },
+  {
+    "name": "Status filter reset",
+    "status": "PASS",
+    "duration": 110
+  },
+  {
+    "name": "Open member form (create new)",
+    "status": "PASS",
+    "duration": 122
+  },
+  {
+    "name": "Fill and save new member",
+    "status": "PASS",
+    "duration": 596
+  },
+  {
+    "name": "Open member detail",
+    "status": "PASS",
+    "duration": 457
+  },
+  {
+    "name": "Edit member",
+    "status": "PASS",
+    "duration": 706
+  },
+  {
+    "name": "Shares overview shows stats and table",
+    "status": "PASS",
+    "duration": 228
+  },
+  {
+    "name": "Shares distribution tab",
+    "status": "PASS",
+    "duration": 134
+  },
+  {
+    "name": "Shares pricing tab",
+    "status": "PASS",
+    "duration": 131
+  },
+  {
+    "name": "Open share form",
+    "status": "PASS",
+    "duration": 1307
+  },
+  {
+    "name": "Depots are listed",
+    "status": "PASS",
+    "duration": 216
+  },
+  {
+    "name": "Open depot form",
+    "status": "PASS",
+    "duration": 452
+  },
+  {
+    "name": "Routes tab",
+    "status": "PASS",
+    "duration": 132
+  },
+  {
+    "name": "Pickups tab",
+    "status": "PASS",
+    "duration": 132
+  },
+  {
+    "name": "Crops list shows culture cards",
+    "status": "PASS",
+    "duration": 216
+  },
+  {
+    "name": "Crops by family tab",
+    "status": "PASS",
+    "duration": 132
+  },
+  {
+    "name": "Crops needs tab",
+    "status": "PASS",
+    "duration": 130
+  },
+  {
+    "name": "Create new crop",
+    "status": "PASS",
+    "duration": 566
+  },
+  {
+    "name": "Field plan canvas shows beds",
+    "status": "PASS",
+    "duration": 212
+  },
+  {
+    "name": "Field plan rotation tab",
+    "status": "PASS",
+    "duration": 135
+  },
+  {
+    "name": "Field plan beds tab",
+    "status": "PASS",
+    "duration": 134
+  },
+  {
+    "name": "Add new bed",
+    "status": "PASS",
+    "duration": 482
+  },
+  {
+    "name": "Plan a planting",
+    "status": "PASS",
+    "duration": 3365
+  },
+  {
+    "name": "Calendar gantt view",
+    "status": "PASS",
+    "duration": 210
+  },
+  {
+    "name": "Calendar list view",
+    "status": "PASS",
+    "duration": 138
+  },
+  {
+    "name": "Harvest log shows entries",
+    "status": "PASS",
+    "duration": 234
+  },
+  {
+    "name": "Harvest by-crop tab",
+    "status": "PASS",
+    "duration": 147
+  },
+  {
+    "name": "Harvest by-week tab",
+    "status": "PASS",
+    "duration": 128
+  },
+  {
+    "name": "Add new harvest",
+    "status": "PASS",
+    "duration": 639
+  },
+  {
+    "name": "Tasks kanban has 4 columns",
+    "status": "PASS",
+    "duration": 226
+  },
+  {
+    "name": "Tasks list view",
+    "status": "PASS",
+    "duration": 953
+  },
+  {
+    "name": "Tasks calendar view",
+    "status": "PASS",
+    "duration": 146
+  },
+  {
+    "name": "Create new task",
+    "status": "PASS",
+    "duration": 612
+  },
+  {
+    "name": "Drag task from backlog to in_progress (simulated)",
+    "status": "PASS",
+    "duration": 160
+  },
+  {
+    "name": "Complete task",
+    "status": "PASS",
+    "duration": 2
+  },
+  {
+    "name": "Inventory shows items",
+    "status": "PASS",
+    "duration": 221
+  },
+  {
+    "name": "Inventory low stock tab",
+    "status": "PASS",
+    "duration": 143
+  },
+  {
+    "name": "Adjust stock with +1 button",
+    "status": "PASS",
+    "duration": 269
+  },
+  {
+    "name": "Create new inventory item",
+    "status": "PASS",
+    "duration": 464
+  },
+  {
+    "name": "Orders open list",
+    "status": "PASS",
+    "duration": 207
+  },
+  {
+    "name": "Orders delivered tab",
+    "status": "PASS",
+    "duration": 145
+  },
+  {
+    "name": "Orders products tab",
+    "status": "PASS",
+    "duration": 123
+  },
+  {
+    "name": "Create new order",
+    "status": "PASS",
+    "duration": 1380
+  },
+  {
+    "name": "Mark order as delivered",
+    "status": "PASS",
+    "duration": 148
+  },
+  {
+    "name": "Finance overview with stats and charts",
+    "status": "PASS",
+    "duration": 234
+  },
+  {
+    "name": "Finance list tab",
+    "status": "PASS",
+    "duration": 173
+  },
+  {
+    "name": "Finance budget tab",
+    "status": "PASS",
+    "duration": 2508
+  },
+  {
+    "name": "Create new payment",
+    "status": "PASS",
+    "duration": 845
+  },
+  {
+    "name": "Charge all members",
+    "status": "PASS",
+    "duration": 710
+  },
+  {
+    "name": "Messages inbox shows sent messages",
+    "status": "PASS",
+    "duration": 205
+  },
+  {
+    "name": "Open new message form",
+    "status": "PASS",
+    "duration": 512
+  },
+  {
+    "name": "Open message detail",
+    "status": "PASS",
+    "duration": 294
+  },
+  {
+    "name": "Reports show 4 stat cards and charts",
+    "status": "PASS",
+    "duration": 234
+  },
+  {
+    "name": "Settings farm tab",
+    "status": "PASS",
+    "duration": 205
+  },
+  {
+    "name": "Settings season tab",
+    "status": "PASS",
+    "duration": 139
+  },
+  {
+    "name": "Settings data tab",
+    "status": "PASS",
+    "duration": 114
+  },
+  {
+    "name": "Settings about tab",
+    "status": "PASS",
+    "duration": 129
+  },
+  {
+    "name": "Update farm name",
+    "status": "PASS",
+    "duration": 252
+  },
+  {
+    "name": "Open command palette via Ctrl+K",
+    "status": "PASS",
+    "duration": 129
+  },
+  {
+    "name": "Filter command palette",
+    "status": "PASS",
+    "duration": 187
+  },
+  {
+    "name": "Execute command",
+    "status": "PASS",
+    "duration": 469
+  },
+  {
+    "name": "Global search finds members",
+    "status": "PASS",
+    "duration": 532
+  },
+  {
+    "name": "Global search finds crops",
+    "status": "PASS",
+    "duration": 646
+  },
+  {
+    "name": "State persists to localStorage",
+    "status": "PASS",
+    "duration": 6
+  },
+  {
+    "name": "Reload page preserves state",
+    "status": "PASS",
+    "duration": 141
+  },
+  {
+    "name": "Mobile viewport (375px)",
+    "status": "PASS",
+    "duration": 147
+  },
+  {
+    "name": "Tablet viewport (768px)",
+    "status": "PASS",
+    "duration": 157
+  },
+  {
+    "name": "Desktop viewport (1440px)",
+    "status": "PASS",
+    "duration": 197
+  },
+  {
+    "name": "Escape closes modals",
+    "status": "PASS",
+    "duration": 349
+  },
+  {
+    "name": "Dark mode rendering",
+    "status": "PASS",
+    "duration": 183
+  }
+]
