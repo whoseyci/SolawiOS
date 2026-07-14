@@ -1,12 +1,19 @@
-# Cloudflare Pages configuration for SolawiOS.
+# Cloudflare Pages configuration for SolawiOS (static site)
 #
-# Deployment options:
-#  1. Dashboard: connect the GitHub repo at https://dash.cloudflare.com → Pages,
-#     build command `npm run build`, build output directory `dist`.
-#  2. CLI: install wrangler (`npm i -g wrangler`), then `wrangler pages deploy dist`.
+# Recommended setup (Git-connected Pages project):
+#   Build command:        npm run build
+#   Build output directory: dist
 #
-# The `name`, `compatibility_date`, and `pages_build_output_dir` below are only
-# consulted by the CLI; the dashboard will use the values entered in the UI.
+# For CLI deploys:
+#   npx wrangler pages deploy dist --project-name=solawios
+#
+# This wrangler.toml enables `wrangler pages deploy` and modern asset uploads.
+
 name = "solawios"
 compatibility_date = "2024-09-23"
-pages_build_output_dir = "./dist"
+
+[assets]
+directory = "./dist"
+# Optional: customize cache headers if needed
+# [assets.headers]
+# "/*" = { "Cache-Control" = "public, max-age=31536000, immutable" }
