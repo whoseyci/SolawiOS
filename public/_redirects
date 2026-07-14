@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects for SolawiOS
+# Single-page app uses hash-based navigation (#dashboard, #members, …).
+# No server-side routing is required, so this file is intentionally minimal.
+# Keep it in place in case a custom domain needs trailing-slash handling.

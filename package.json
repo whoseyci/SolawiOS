@@ -1,0 +1,23 @@
+{
+  "name": "solawios",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "SolawiOS — Community Supported Agriculture farm management",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "node tests.mjs",
+    "deploy": "npm run build && wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "@phosphor-icons/web": "^2.1.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
