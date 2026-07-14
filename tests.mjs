@@ -1,8 +1,5 @@
 // Comprehensive Playwright test suite for SolawiOS
 import { chromium } from 'playwright';
-import sparticuzChromium, { inflate, setupLambdaEnvironment } from '@sparticuz/chromium';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
 const BASE = 'http://localhost:8765';
@@ -66,19 +63,18 @@ async function go(pageId, tab=null) {
 }
 
 async function start() {
+  const sparticuz = (await import('@sparticuz/chromium')).default;
+  const { inflate, setupLambdaEnvironment } = await import('@sparticuz/chromium');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  await inflate('node_modules/@sparticuz/chromium/bin/al2023.tar.br');
+  setupLambdaEnvironment(path.join(os.tmpdir(), 'al2023', 'lib'));
+  const execPath = await sparticuz.executablePath();
   // Launch with custom args for sandbox
-  let executablePath;
-  let args = ['--no-sandbox', '--disable-dev-shm-usage', '--disable-setuid-sandbox'];
-  try {
-    await inflate('/home/user/SolawiOS/node_modules/@sparticuz/chromium/bin/al2023.tar.br');
-    setupLambdaEnvironment('/tmp/al2023/lib');
-    executablePath = await sparticuzChromium.executablePath();
-    args = sparticuzChromium.args;
-  } catch(e) {}
   browser = await chromium.launch({
-    executablePath,
+    executablePath: execPath,
     headless: true,
-    args
+    args: sparticuz.args
   });
   context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   page = await context.newPage();
