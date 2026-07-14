@@ -1,0 +1,131 @@
+🌾 SolawiOS Test Suite
+
+Starting browser...
+Browser started.
+
+--- Core Layout ---
+  ✅ Sidebar and brand are present
+  ✅ All navigation items are rendered
+  ✅ Topbar has title, search, and action button
+  ✅ No console errors on initial load
+
+--- Dashboard ---
+  ✅ Dashboard loads with hero, stats, and charts
+  ✅ Dashboard shows activity feed
+  ✅ Dashboard time range buttons work
+
+--- Members ---
+  ✅ Members page lists sample members
+  ✅ Search filter works
+  ✅ Status filter works
+  ✅ Status filter reset
+  ✅ Open member form (create new)
+  ✅ Fill and save new member
+  ✅ Open member detail
+  ✅ Edit member
+
+--- Shares ---
+  ✅ Shares overview shows stats and table
+  ✅ Shares distribution tab
+  ✅ Shares pricing tab
+  ✅ Open share form
+
+--- Distribution ---
+  ✅ Depots are listed
+  ✅ Open depot form
+  ✅ Routes tab
+  ✅ Pickups tab
+
+--- Crops ---
+  ✅ Crops list shows culture cards
+  ✅ Crops by family tab
+  ✅ Crops needs tab
+  ✅ Create new crop
+
+--- Field Plan ---
+  ✅ Field plan canvas shows beds
+  ✅ Field plan rotation tab
+  ✅ Field plan beds tab
+  ✅ Add new bed
+  ✅ Plan a planting
+
+--- Calendar ---
+  ✅ Calendar gantt view
+  ✅ Calendar list view
+
+--- Harvest ---
+  ✅ Harvest log shows entries
+  ✅ Harvest by-crop tab
+  ✅ Harvest by-week tab
+  ✅ Add new harvest
+
+--- Tasks ---
+  ✅ Tasks kanban has 4 columns
+  ✅ Tasks list view
+  ✅ Tasks calendar view
+  ✅ Create new task
+  ✅ Drag task from backlog to in_progress (simulated)
+  ✅ Complete task
+
+--- Inventory ---
+  ✅ Inventory shows items
+  ✅ Inventory low stock tab
+  ✅ Adjust stock with +1 button
+  ✅ Create new inventory item
+
+--- Orders ---
+  ✅ Orders open list
+  ✅ Orders delivered tab
+  ✅ Orders products tab
+  ✅ Create new order
+  ✅ Mark order as delivered
+
+--- Finance ---
+  ✅ Finance overview with stats and charts
+  ✅ Finance list tab
+  ✅ Finance budget tab
+  ✅ Create new payment
+  ✅ Charge all members
+
+--- Messages ---
+  ✅ Messages inbox shows sent messages
+  ✅ Open new message form
+  ✅ Open message detail
+
+--- Reports ---
+  ✅ Reports show 4 stat cards and charts
+
+--- Settings ---
+  ✅ Settings farm tab
+  ✅ Settings season tab
+  ✅ Settings data tab
+  ✅ Settings about tab
+  ✅ Update farm name
+
+--- Command Palette ---
+  ✅ Open command palette via Ctrl+K
+  ✅ Filter command palette
+  ✅ Execute command
+
+--- Global Search ---
+  ✅ Global search finds members
+  ✅ Global search finds crops
+
+--- Persistence ---
+  ✅ State persists to localStorage
+  ✅ Reload page preserves state
+
+--- Responsive ---
+  ✅ Mobile viewport (375px)
+  ✅ Tablet viewport (768px)
+  ✅ Desktop viewport (1440px)
+
+--- Keyboard & A11y ---
+  ✅ Escape closes modals
+
+--- Dark Mode ---
+  ✅ Dark mode rendering
+
+============================================================
+  RESULTS:  79 passed · 0 failed · 0 skipped · 79 total
+============================================================

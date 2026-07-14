@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^149.0.0"
+  }
+}
