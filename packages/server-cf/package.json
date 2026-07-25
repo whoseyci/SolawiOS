@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc --build",
     "dev": "wrangler dev",
-    "deploy": "npm run build --prefix ../.. && node ../../scripts/check-assets.mjs && npm run schema --prefix ../.. && wrangler d1 execute solawi-os --remote --file=./schema.sql --yes && wrangler deploy",
+    "deploy": "cd ../.. && npm run build && node scripts/check-assets.mjs && npm run schema && cd packages/server-cf && wrangler d1 execute solawi-os --remote --file=./schema.sql --yes && wrangler deploy",
     "deploy:worker-only": "wrangler deploy",
     "db:local": "wrangler d1 execute solawi-os --local --file=./schema.sql --yes"
   },
