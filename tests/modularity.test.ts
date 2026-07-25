@@ -166,3 +166,19 @@ describe('founding: established farms can skip the whole phase', () => {
     expect((await progress(ctx)).done).toBe(5);
   });
 });
+
+describe('org slugs', () => {
+  it('accepts two-character slugs', () => {
+    // Regression: the original pattern required 3+ chars, so a farm called
+    // "Ce" or "CS" could not sign up and the UI showed a generic error.
+    const re = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
+    expect(re.test('cs')).toBe(true);
+    expect(re.test('ab')).toBe(true);
+    expect(re.test('crowdsalat')).toBe(true);
+    expect(re.test('my-farm')).toBe(true);
+    expect(re.test('a')).toBe(false);        // single char is too short
+    expect(re.test('-bad')).toBe(false);     // may not start with a hyphen
+    expect(re.test('bad-')).toBe(false);     // nor end with one
+    expect(re.test('Bad')).toBe(false);      // lowercase only
+  });
+});

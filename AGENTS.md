@@ -122,6 +122,7 @@ docs/integrations/    Per-integration mapping notes incl. verified upstream vers
 content/              Localisable non-code content (guides, checklists, crop data)
 content/jurisdictions/<iso>/   Legal & fiscal content per jurisdiction
 packages/
+  web/                the PWA (Vite, no framework, offline-first)
   platform/           capability INTERFACES only (Store, BlobStore, Queue, Realtime, …)
   platform-cf/        Cloudflare implementation (D1, R2, KV, Durable Objects)
   platform-node/      self-host implementation (SQLite, filesystem, in-process)
@@ -170,6 +171,18 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-25` — **Frontend built.** `packages/web`: PWA in plain TypeScript + Vite, no
+  framework (target device is an old phone). 11 kB gzipped. Offline-first via an
+  IndexedDB outbox — writes queue when there is no signal and flush on reconnect;
+  observations carry client-generated ids so replays are idempotent. Screens: auth,
+  farm picker (incl. established-farm skip), field with the TIME SLIDER and one-tap
+  observation capture, tasks with the sequencing assistant, members with radius-based
+  neighbour counts, Bieterrunde with the batched bar (+ projector mode), founding
+  milestone graph, settings with live module toggles, and the feedback reporter with
+  its mandatory preview. Served by the same Worker as the API via `[assets]` with
+  `run_worker_first` — one deploy, one origin, no CORS.
+  Fixed a real bug found while testing: the org slug pattern required 3+ characters,
+  so a farm called "cs" could not sign up. Regression test added.
 - `2026-07-25` — Published to `github.com/whoseyci/solawios` as **`main`**. The previous
   localStorage SPA was discarded on the owner's instruction; it is preserved as tags
   `archive/static-spa-v2`, `archive/spa-early-1`, `archive/spa-early-2` and is not a

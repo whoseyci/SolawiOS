@@ -18,7 +18,9 @@ export function orgRoutes(app: App): void {
       locale?: string; jurisdiction?: string; timezone?: string;
     }>();
 
-    if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(body.slug ?? '')) {
+    // 2–50 chars, lowercase alphanumeric plus internal hyphens.
+    // The middle group is {0,48} so two-character slugs ("cs") are valid.
+    if (!/^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/.test(body.slug ?? '')) {
       return c.json({ error: 'invalid_slug' }, 400);
     }
     const kernel = c.get('kernel');

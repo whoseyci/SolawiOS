@@ -13,7 +13,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc --build",
+    "build": "tsc --build && npm run build --workspace @solawi/web",
     "clean": "tsc --build --clean",
     "typecheck": "tsc --build --force",
     "test": "vitest run",
@@ -25,7 +25,8 @@
     "setup": "bash scripts/setup.sh",
     "demo": "npm run build --silent && node scripts/demo.mjs",
     "deploy": "bash scripts/deploy-cf.sh",
-    "schema": "npm run build --silent && node scripts/generate-schema.mjs"
+    "schema": "npm run build --silent && node scripts/generate-schema.mjs",
+    "dev:web": "npm run dev --workspace @solawi/web"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

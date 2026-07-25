@@ -1,0 +1,13 @@
+{
+  "name": "Solawi OS",
+  "short_name": "Solawi",
+  "description": "Das Betriebssystem für Solidarische Landwirtschaft",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfcfa",
+  "theme_color": "#1f6b3a",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
