@@ -171,6 +171,16 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-25` — **Signup failed in production: Workers CPU limit.** The free plan allows
+  **10 ms of CPU per request**; PBKDF2-SHA256 at 210 000 iterations costs ~63 ms, so every
+  registration was killed with Error 1102. It passed every local test because
+  `wrangler dev` does **not** enforce CPU limits — the lesson is that local Workers testing
+  proves correctness, not resource fit. Fixed in `packages/platform-cf/src/password.ts`
+  by splitting the derivation into 14 chunks of 15 000 iterations with a macrotask yield
+  between them (a bare `await Promise.resolve()` would not reset the accounting window).
+  Worst slice ~6.6 ms; **total work unchanged at 210 000 iterations** — lowering it would
+  have been a security regression dressed up as a fix. Legacy single-shot hashes still
+  verify. Covered by `tests/password.test.ts`.
 - `2026-07-25` — **Blank screen after deploy, fixed.** Three bugs in the delivery path:
   (a) `packages/server-cf/public/` was gitignored, so Cloudflare cloned a repo with no
   assets and wrangler deployed nothing; the SPA fallback then answered `/assets/*.js`

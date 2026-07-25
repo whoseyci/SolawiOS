@@ -3,6 +3,10 @@ import type {
   SqlValue, Row, BlobMeta,
 } from '@solawi/platform';
 
+// Password hashing lives in ./password.ts: the Workers free plan caps CPU at
+// 10 ms per request and a single-shot PBKDF2 blows straight through it.
+import { hashPassword, verifyPassword, timingSafeEqual } from './password.js';
+
 /**
  * Cloudflare platform implementation (ADR-0004).
  *
@@ -52,7 +56,6 @@ export interface CfBindings {
   BIDDING?: DurableObjectNamespaceLike;
 }
 
-const PBKDF2_ITERATIONS = 210_000;
 
 class D1Store implements Store {
   constructor(private readonly db: D1Like) {}
@@ -142,25 +145,9 @@ const webCrypto: Crypto = {
     crypto.getRandomValues(arr);
     return [...arr].map((b) => b.toString(16).padStart(2, '0')).join('');
   },
-  timingSafeEqual(a, b) {
-    if (a.length !== b.length) return false;
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    return diff === 0;
-  },
-  async hashPassword(password, salt) {
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits(
-      { name: 'PBKDF2', salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-      key, 256,
-    );
-    return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  },
-  async verifyPassword(password, salt, hash) {
-    const computed = await this.hashPassword(password, salt);
-    return this.timingSafeEqual(computed, hash);
-  },
+  timingSafeEqual,
+  hashPassword,
+  verifyPassword,
 };
 
 export function createCloudflarePlatform(env: CfBindings, clock?: Clock): Platform {

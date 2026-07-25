@@ -82,6 +82,11 @@ jobs:
       - name: Privacy test suite
         run: npx vitest run tests/privacy.test.ts
 
+      # Signing up was impossible in production because a single-shot PBKDF2
+      # exceeded the 10 ms CPU budget on the Workers free plan.
+      - name: Password hashing fits the Workers CPU budget
+        run: npx vitest run tests/password.test.ts
+
       # A grep is crude, but this specific mistake is easy to make and expensive
       # to discover later, so it is worth failing the build over.
       - name: Assert observations carry no person attribution
