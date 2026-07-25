@@ -170,6 +170,16 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-25` — Pushed to `github.com/whoseyci/solawios` on branch **`backend`**.
+  `main` already held an existing static SPA (SolawiOS v2.0.0: Vite, localStorage,
+  15 UI modules, 79 Playwright tests, deployed to Cloudflare Pages) — it was NOT
+  overwritten. Integration plan in `docs/61-zusammenfuehrung-mit-spa.md`.
+  Added module 23 `feedback` (in-app bug reporting → GitHub Issues, mandatory
+  preview, automatic redaction of emails/phones/IBANs/coords/tokens, stored
+  locally first so delivery is retryable), `scripts/generate-schema.mjs`
+  (idempotent schema.sql from all module migrations, so Cloudflare Builds can
+  apply D1 changes before deploying), `docs/60-cloudflare-builds.md`.
+  28 tests passing.
 - `2026-07-25` — Onboarding: `scripts/setup.sh` (prereq checks, install, build, test),
   `scripts/deploy-cf.sh` (creates D1/KV/R2 and **writes the ids into wrangler.toml
   automatically**, degrades gracefully when R2 needs a card), `scripts/demo.mjs`
