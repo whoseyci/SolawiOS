@@ -3,8 +3,11 @@
 **Das Betriebssystem für Solidarische Landwirtschaft.**
 Von „Ich will eine Solawi gründen" bis „Wir wirtschaften seit zehn Jahren gemeinsam".
 
-> Status: Konzeptphase. Dieses Repo enthält aktuell Architektur- und Designdokumente,
-> noch keinen Produktivcode. Siehe [`docs/00-konzept.md`](docs/00-konzept.md).
+> **Status: Alpha.** Backend, Datenmodell und API laufen (28 Tests grün, beide
+> Deployment-Wege in der CI). Ein Frontend gibt es noch nicht —
+> siehe [`docs/61-frontend-plan.md`](docs/61-frontend-plan.md).
+>
+> Einstieg: **[START-HIER.md](START-HIER.md)** · `npm run setup` · `npm run demo`
 
 ---
 
@@ -55,6 +58,8 @@ Siehe [Abgrenzung & Interoperabilität](docs/00-konzept.md#5-abgrenzung--interop
 | [`docs/30-i18n-und-lokalisierung.md`](docs/30-i18n-und-lokalisierung.md) | Übersetzung, Jurisdiktions-Packs, Formate |
 | [`docs/40-profile-und-modulbaukasten.md`](docs/40-profile-und-modulbaukasten.md) | Wie sich eine Solawi ihr System zusammenstellt |
 | [`docs/50-mindmap-abgleich.md`](docs/50-mindmap-abgleich.md) | Transkription der Handskizze und was daraus neu entstand |
+| [`docs/60-cloudflare-builds.md`](docs/60-cloudflare-builds.md) | Automatisches Deployment über das CF-Dashboard, inkl. D1-Migrationen |
+| [`docs/61-frontend-plan.md`](docs/61-frontend-plan.md) | Frontend: Anforderungen und Reihenfolge (noch nicht gebaut) |
 | [`docs/51-mindmap-mermaid.md`](docs/51-mindmap-mermaid.md) | Die Skizze als Mermaid-Diagramm, Unsicherheiten farbig markiert |
 | [`content/de/founding/stolperfallen.md`](content/de/founding/stolperfallen.md) | Beispielinhalte Stolperfallenbibliothek + Datenschema |
 | [`AGENTS.md`](AGENTS.md) | Arbeitsanweisung für KI-Agenten und neue Mitwirkende |
