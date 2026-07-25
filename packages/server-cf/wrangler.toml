@@ -18,7 +18,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "solawi-os"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "83563c34-b6e6-4d7b-af8a-42c36a90ea74"
 
 # ------------------------------------------------------------- R2 (blobs)
 # Photos and exports. Optional: the app degrades gracefully without it.
@@ -31,7 +31,7 @@ bucket_name = "solawi-os-blobs"
 # Create with:  wrangler kv namespace create CACHE
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_WITH_YOUR_KV_ID"
+id = "5010e793274c4206ba6258b7006de7ab"
 
 # ------------------------------------------------- Durable Objects (bidding)
 # One instance per Bieterrunde: owns WebSocket fan-out and the batching rules.
