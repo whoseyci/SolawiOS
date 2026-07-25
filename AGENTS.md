@@ -171,6 +171,18 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-25` — **Blank screen after deploy, fixed.** Three bugs in the delivery path:
+  (a) `packages/server-cf/public/` was gitignored, so Cloudflare cloned a repo with no
+  assets and wrangler deployed nothing; the SPA fallback then answered `/assets/*.js`
+  with HTML and strict MIME checking blanked the page. (b) The service worker fell back
+  to `index.html` for ANY failed request, reproducing the same MIME error from cache even
+  after the server was fixed. (c) The CF deploy command used `npm run --prefix`, which
+  does not put the root `node_modules/.bin` on PATH — `tsc: not found`.
+  Now: the directory is tracked via `.gitkeep`, `scripts/check-assets.mjs` fails the
+  deploy when `index.html` references a file that is not on disk, the SW only falls back
+  for navigations (hashed assets cache-first, document network-first, cache `v3`), and
+  the deploy command `cd`s to the root. Stale workers self-replace with a one-time reload;
+  `/?reset=sw` is the manual escape hatch. Verified by building from a clean clone.
 - `2026-07-25` — **App completed.** Fixed the "cannot create an account" bug: on Cloudflare
   the migration ran in `ctx.waitUntil()`, which does not block the response, so the first
   request after a cold start could hit the database before the tables existed. It is now

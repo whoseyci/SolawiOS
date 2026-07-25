@@ -36,6 +36,21 @@ jobs:
       - name: Build web app
         run: npm run build --workspace @solawi/web
 
+      # A deploy that ships no frontend must fail, not serve a blank page.
+      - name: Assert the web bundle is deployable
+        run: node scripts/check-assets.mjs
+
+      # The service worker must never answer a script request with the HTML
+      # shell; that produces a MIME error and a blank screen that persists
+      # from cache even after the server is fixed.
+      - name: Assert the service worker has no blanket HTML fallback
+        run: |
+          if grep -nE "catch\(\(\) => caches\.match\('/index\.html'\)\)" packages/web/public/sw.js; then
+            echo "::error::sw.js falls back to index.html for non-navigation requests"
+            exit 1
+          fi
+          echo "OK: no blanket HTML fallback in the service worker"
+
       # --- Self-hosted target: must actually boot and serve ---
       - name: Smoke test — Node / SQLite
         run: |
