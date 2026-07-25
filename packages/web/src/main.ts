@@ -144,8 +144,40 @@ function shell(): void {
 
 void boot();
 
+/*
+ * Service worker.
+ *
+ * An earlier version fell back to index.html for ANY failed request, so a
+ * cached bad state served HTML for /assets/*.js and the app went blank with a
+ * MIME error. Anyone who loaded that version still has it installed, so we
+ * update aggressively and reload once when a new worker takes over.
+ */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js').catch(() => {});
+    void navigator.serviceWorker.register('/sw.js').then((reg) => {
+      void reg.update();
+      reg.addEventListener('updatefound', () => {
+        const next = reg.installing;
+        next?.addEventListener('statechange', () => {
+          // Only reload for a genuine replacement, not the very first install.
+          if (next.state === 'activated' && navigator.serviceWorker.controller) {
+            location.reload();
+          }
+        });
+      });
+    }).catch(() => {});
   });
+}
+
+/**
+ * Last-resort recovery: /?reset=sw unregisters every worker and clears caches.
+ * Cheap to keep, and the difference between "reinstall the app" and a blank
+ * screen someone cannot get out of.
+ */
+if (location.search.includes('reset=sw') && 'serviceWorker' in navigator) {
+  void (async () => {
+    for (const reg of await navigator.serviceWorker.getRegistrations()) await reg.unregister();
+    if ('caches' in window) for (const k of await caches.keys()) await caches.delete(k);
+    location.replace('/');
+  })();
 }

@@ -26,7 +26,8 @@
     "demo": "npm run build --silent && node scripts/demo.mjs",
     "deploy": "bash scripts/deploy-cf.sh",
     "schema": "npm run build --silent && node scripts/generate-schema.mjs",
-    "dev:web": "npm run dev --workspace @solawi/web"
+    "dev:web": "npm run dev --workspace @solawi/web",
+    "check:assets": "node scripts/check-assets.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
