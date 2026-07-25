@@ -42,25 +42,43 @@ Im Dashboard unter **Storage & Databases**:
 - **D1** → Create → Name: `solawi-os` → die ID kopieren
 - **KV** → Create → Name beliebig → die ID kopieren
 
-Dann in `wrangler.toml` die beiden `REPLACE_WITH_YOUR_*`-Platzhalter ersetzen
-und committen. (Das ist der einzige Schritt, der eine Dateiänderung braucht —
-direkt im GitHub-Weboberfläche möglich.)
+Beide IDs stehen bereits in `wrangler.toml`. Wenn du die Ressourcen neu anlegst,
+dort ersetzen — sie sind keine Geheimnisse, sondern nur Referenzen, die ohne
+Account-Zugang wertlos sind.
 
-**R2** (Fotos, Exporte) ist optional und verlangt eine hinterlegte
-Zahlungsmethode. Ohne R2 läuft alles außer Dateiupload.
+**Wichtig:** `name` in `wrangler.toml` muss zum Projektnamen in Workers Builds
+passen (`solawios`). Sonst überschreibt das CI den Namen und warnt bei jedem
+Deploy.
 
-### 4. Secret für die Fehlermeldungen
+**R2** (Fotos, Exporte) ist **standardmäßig deaktiviert**, weil Cloudflare dafür
+eine Zahlungsmethode verlangt — auch im kostenlosen Kontingent. Ein Deploy mit
+R2-Binding, aber ohne existierenden Bucket, **schlägt fehl**
+(`R2 bucket not found [code: 10085]`). Zum Aktivieren:
+
+```bash
+npx wrangler r2 bucket create solawi-os-blobs
+```
+
+und dann die drei Zeilen in `wrangler.toml` einkommentieren. Ohne R2 läuft alles
+außer Dateiupload.
+
+### 4. Das einzige nötige Secret
 
 Worker → **Settings** → **Variables and Secrets** → **Add secret**:
 
-| Name | Wert |
-|---|---|
-| `GITHUB_ISSUE_TOKEN` | dein Fine-grained PAT (siehe unten) |
-| `GITHUB_ISSUE_OWNER` | `whoseyci` |
-| `GITHUB_ISSUE_REPO` | `solawios` |
+| Name | Wert | Pflicht? |
+|---|---|---|
+| `GITHUB_ISSUE_TOKEN` | dein Fine-grained PAT (siehe unten) | nur für In-App-Fehlermeldungen |
 
 Als **Secret** anlegen, nicht als Variable — Secrets sind nach dem Speichern
 nicht mehr lesbar.
+
+`GITHUB_ISSUE_OWNER` und `GITHUB_ISSUE_REPO` sind **nicht nötig**: Der Code fällt
+auf `whoseyci` / `solawios` zurück. Nur setzen, wenn das Repo umzieht oder
+umbenannt wird.
+
+Ohne Token läuft die App normal — Fehlermeldungen werden dann lokal gespeichert
+und können später zugestellt werden.
 
 ---
 

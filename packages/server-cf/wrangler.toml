@@ -4,7 +4,9 @@
 # org_id, and every query filters on it. For farms that want hard isolation, the
 # same schema runs in a per-farm D1 database — no code changes required.
 
-name = "solawi-os"
+# Muss zum Repository-/Projektnamen passen, sonst überschreibt Workers Builds
+# den Namen und warnt bei jedem Deploy.
+name = "solawios"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -21,11 +23,19 @@ database_name = "solawi-os"
 database_id = "83563c34-b6e6-4d7b-af8a-42c36a90ea74"
 
 # ------------------------------------------------------------- R2 (blobs)
-# Photos and exports. Optional: the app degrades gracefully without it.
-# Create with:  wrangler r2 bucket create solawi-os-blobs
-[[r2_buckets]]
-binding = "BLOBS"
-bucket_name = "solawi-os-blobs"
+# Fotos, Dokumente, Exporte.
+#
+# STANDARDMÄSSIG AUS: R2 verlangt eine hinterlegte Zahlungsmethode, selbst im
+# kostenlosen Kontingent. Ohne dieses Binding läuft alles außer Dateiupload —
+# die Plattformschicht liefert dann einen No-op-Blobstore (platform-cf/index.ts).
+#
+# Zum Aktivieren:
+#   1. npx wrangler r2 bucket create solawi-os-blobs
+#   2. die drei Zeilen unten einkommentieren
+#
+# [[r2_buckets]]
+# binding = "BLOBS"
+# bucket_name = "solawi-os-blobs"
 
 # ------------------------------------------------------------------ KV (cache)
 # Create with:  wrangler kv namespace create CACHE
