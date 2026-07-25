@@ -1,47 +1,79 @@
 import './styles/app.css';
 import { el, mount } from './lib/ui.js';
 import { t } from './lib/i18n.js';
-import { auth, get, online, flushOutbox, outboxCount } from './lib/api.js';
+import { auth, online, flushOutbox, outboxCount } from './lib/api.js';
+import { loadCtx, ctx, invalidateCtx, can } from './lib/session.js';
 import { renderAuth, renderOrgPicker } from './pages/auth.js';
+import { renderHouseholdLink } from './pages/household.js';
 import { renderField } from './pages/field.js';
+import { renderCrops } from './pages/crops.js';
 import { renderTasks } from './pages/tasks.js';
 import { renderMembers } from './pages/members.js';
+import { renderDistribution } from './pages/distribution.js';
+import { renderInventory } from './pages/inventory.js';
+import { renderFinance } from './pages/finance.js';
 import { renderBidding } from './pages/bidding.js';
 import { renderMore, feedbackSheet } from './pages/more.js';
 import { renderFounding } from './pages/founding.js';
 
 const app = document.getElementById('app')!;
 
-interface Tab { id: string; icon: string; label: string; module?: string; render: (r: HTMLElement) => void }
+interface Tab {
+  id: string; icon: string; label: string;
+  module?: string; role?: string;
+  render: (r: HTMLElement) => void;
+}
 
+/**
+ * Navigation. A tab appears only when its module is enabled AND the person has
+ * the role for it — someone who just collects vegetables never sees a crop
+ * rotation matrix (docs/00 §3).
+ */
 const TABS: Tab[] = [
   { id: 'field', icon: '\u{1F33F}', label: 'nav.field', module: 'land', render: renderField },
+  { id: 'crops', icon: '\u{1F955}', label: 'nav.crops', module: 'cultivation', role: 'grower', render: renderCrops },
   { id: 'tasks', icon: '\u{2713}', label: 'nav.tasks', module: 'tasks', render: renderTasks },
+  { id: 'dist', icon: '\u{1F4E6}', label: 'nav.dist', module: 'distribution', render: renderDistribution },
   { id: 'members', icon: '\u{1F465}', label: 'nav.members', module: 'members', render: renderMembers },
+  { id: 'inventory', icon: '\u{1F527}', label: 'nav.inventory', module: 'inventory', render: renderInventory },
   { id: 'bidding', icon: '\u{1F5F3}', label: 'nav.bidding', module: 'bidding', render: (r) => renderBidding(r) },
+  { id: 'finance', icon: '\u{1F4B0}', label: 'nav.finance', module: 'finance', role: 'finance', render: renderFinance },
   { id: 'founding', icon: '\u{1F331}', label: 'nav.founding', module: 'founding', render: renderFounding },
   { id: 'more', icon: '\u{2699}', label: 'nav.settings', render: renderMore },
 ];
 
-let enabled = new Set<string>();
+/** Phones fit about five; the rest live behind "More". */
+const MAX_TABS = 5;
 
 async function boot(): Promise<void> {
   if (!auth.signedIn) return renderAuth(app, () => void boot());
   if (!auth.org) return renderOrgPicker(app, () => void boot());
 
   try {
-    const { data } = await get<{ modules: Array<{ id: string; enabled: boolean }> }>('/api/org');
-    enabled = new Set(data.modules.filter((m) => m.enabled).map((m) => m.id));
+    await loadCtx(true);
   } catch {
-    // Offline on a cold start: show everything rather than an empty shell.
-    enabled = new Set(TABS.map((tb) => tb.module).filter(Boolean) as string[]);
+    // A stale org slug (farm deleted, or a wrong header) would otherwise loop.
+    auth.org = null;
+    return renderOrgPicker(app, () => void boot());
   }
+
+  // Members module on, but this person is not linked to a household yet:
+  // ask once, allow skipping.
+  const c = ctx();
+  if (c.modules.includes('members') && !c.household && !sessionStorage.getItem('skipHousehold')) {
+    return renderHouseholdLink(app, () => {
+      sessionStorage.setItem('skipHousehold', '1');
+      void boot();
+    });
+  }
+
   shell();
 }
 
 function visibleTabs(): Tab[] {
-  // Disabled modules are ABSENT, not greyed out (docs/40 §3).
-  return TABS.filter((tb) => !tb.module || enabled.has(tb.module));
+  const c = ctx();
+  return TABS.filter((tb) =>
+    (!tb.module || c.modules.includes(tb.module)) && (!tb.role || can(tb.role)));
 }
 
 function shell(): void {
@@ -50,37 +82,48 @@ function shell(): void {
     class: 'banner banner-offline', style: online.is ? 'display:none' : '',
   }, t('common.offline'));
   const pendingBadge = el('span', { class: 'badge badge-warn', style: 'display:none' }, '');
+  const title = el('h1', {}, t('app.name'));
 
   const tabbar = el('nav', { class: 'tabbar' });
   const topbar = el('header', { class: 'topbar' },
-    el('h1', {}, t('app.name')),
+    title,
     pendingBadge,
     el('button', {
       class: 'btn btn-ghost', style: 'min-height:36px;padding:.2rem .6rem',
-      title: t('feedback.title'), onclick: feedbackSheet,
+      title: t('feedback.title'), 'aria-label': t('feedback.title'), onclick: feedbackSheet,
     }, '\u{2691}'),
   );
 
   mount(app, topbar, offlineBanner, content, tabbar);
 
   function route(): void {
-    const id = location.hash.replace(/^#\/?/, '').split('?')[0] || visibleTabs()[0]?.id || 'more';
-    const tab = TABS.find((tb) => tb.id === id) ?? visibleTabs()[0];
+    const vis = visibleTabs();
+    const id = location.hash.replace(/^#\/?/, '').split('?')[0] || vis[0]?.id || 'more';
+    const tab = TABS.find((tb) => tb.id === id && vis.includes(tb)) ?? vis[0];
     if (!tab) return;
 
-    (topbar.firstChild as HTMLElement).textContent = t(tab.label);
+    title.textContent = t(tab.label);
     mount(content);
     tab.render(content);
 
-    mount(tabbar, ...visibleTabs().map((tb) =>
-      el('a', { href: `#/${tb.id}`, class: tb.id === tab.id ? 'active' : '' },
+    const primary = vis.slice(0, MAX_TABS - 1);
+    const overflow = vis.slice(MAX_TABS - 1);
+    const more = TABS.find((x) => x.id === 'more')!;
+    const bar = overflow.length > 1 ? [...primary, more] : vis;
+
+    mount(tabbar, ...bar.map((tb) =>
+      el('a', {
+        href: `#/${tb.id}`,
+        class: tb.id === tab.id ? 'active' : '',
+        'aria-current': tb.id === tab.id ? 'page' : undefined,
+      },
         el('span', { class: 'ico' }, tb.icon),
         el('span', {}, t(tb.label)),
       )));
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('solawi:modules', () => void boot());
+  window.addEventListener('solawi:modules', () => { invalidateCtx(); void boot(); });
 
   online.listen((isOnline) => {
     offlineBanner.style.display = isOnline ? 'none' : '';
@@ -96,13 +139,11 @@ function shell(): void {
 
   route();
   void refreshPending();
-  // Anything captured offline goes out as soon as we have a connection.
   if (online.is) void flushOutbox();
 }
 
 void boot();
 
-// Service worker: makes the app installable and usable with no connection.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/sw.js').catch(() => {});

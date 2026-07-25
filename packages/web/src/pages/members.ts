@@ -1,6 +1,8 @@
 import { el, mount, sheet, toast, spinner, empty } from '../lib/ui.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
+import { ctx } from '../lib/session.js';
+import { renderDiscoverableToggle } from './household.js';
 
 interface Household { id: string; name: string; contact_email: string | null }
 interface Neighbours { count: number | null; display: string; radiusKm: number; canConnect: boolean }
@@ -55,8 +57,8 @@ export function renderMembers(root: HTMLElement): void {
     const connectBtn = el('button', { class: 'btn', style: 'display:none' }, t('members.connect'));
 
     async function refresh(): Promise<void> {
-      const hid = localStorage.getItem('solawi.household');
-      if (!hid) { out.textContent = t('members.privacy'); return; }
+      const hid = ctx().household?.id;
+      if (!hid) { out.textContent = t('household.why'); return; }
       try {
         const { data } = await get<Neighbours>(
           `/api/members/neighbours?householdId=${hid}&radiusKm=${radius.value}`);
@@ -68,7 +70,7 @@ export function renderMembers(root: HTMLElement): void {
     }
     radius.addEventListener('change', () => void refresh());
     connectBtn.addEventListener('click', async () => {
-      const hid = localStorage.getItem('solawi.household');
+      const hid = ctx().household?.id;
       if (!hid) return;
       try {
         const res = await post<{ sent: number }>('/api/members/connect', {
@@ -79,12 +81,14 @@ export function renderMembers(root: HTMLElement): void {
     });
     void refresh();
 
-    return el('div', { class: 'card' },
+    return el('div', {},
+      ctx().household ? renderDiscoverableToggle(ctx().household!.discoverable, () => renderMembers(root)) : null,
+      el('div', { class: 'card' },
       el('h2', {}, t('members.neighbours')),
       el('div', { class: 'row', style: 'margin-bottom:.5rem' }, radius, connectBtn),
       out,
       el('p', { class: 'hint' }, t('members.privacy')),
-    );
+    ));
   }
 
   function addSheet(): void {

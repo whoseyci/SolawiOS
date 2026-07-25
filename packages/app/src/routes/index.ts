@@ -9,6 +9,8 @@ import { biddingRoutes } from './bidding.js';
 import { observationRoutes } from './observations.js';
 import { foundingRoutes } from './founding.js';
 import { feedbackRoutes } from './feedback.js';
+import { meRoutes } from './me.js';
+import { opsRoutes } from './ops.js';
 
 export function registerRoutes(app: App): void {
   authRoutes(app);
@@ -21,4 +23,6 @@ export function registerRoutes(app: App): void {
   biddingRoutes(app);
   observationRoutes(app);
   feedbackRoutes(app);
+  meRoutes(app);
+  opsRoutes(app);
 }

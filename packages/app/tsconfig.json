@@ -40,6 +40,15 @@
     },
     {
       "path": "../modules/feedback"
+    },
+    {
+      "path": "../modules/distribution"
+    },
+    {
+      "path": "../modules/inventory"
+    },
+    {
+      "path": "../modules/finance"
     }
   ]
 }

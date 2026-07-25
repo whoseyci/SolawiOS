@@ -171,6 +171,19 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-25` — **App completed.** Fixed the "cannot create an account" bug: on Cloudflare
+  the migration ran in `ctx.waitUntil()`, which does not block the response, so the first
+  request after a cold start could hit the database before the tables existed. It is now
+  awaited (idempotent, once per isolate) and a failure returns 503 rather than an opaque 500.
+  Added **household linking** (`/api/me/context`, `/api/me/household`, `/api/me/discoverable`) —
+  the web app previously expected a `solawi.household` value in localStorage that nothing set,
+  so neighbour discovery and bidding silently did nothing. Session context is now loaded once
+  per boot and shared. New modules: **7 `distribution`** (depots, days, pickups, absences joined
+  live), **11 `inventory`** (loans, condition, service intervals), **2 `finance`** (full-cost
+  accounting, multi-source income with dependency warnings, wage reality check for SF-002).
+  New screens: crops/plantings (the time slider had no way to get data before), distribution,
+  inventory, finance, household linking. Nav is now role- AND module-aware with overflow.
+  11 modules, 37 tests.
 - `2026-07-25` — **Frontend built.** `packages/web`: PWA in plain TypeScript + Vite, no
   framework (target device is an old phone). 11 kB gzipped. Offline-first via an
   IndexedDB outbox — writes queue when there is no signal and flush on reconnect;

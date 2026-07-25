@@ -1,6 +1,7 @@
 import { el, mount, toast, spinner } from '../lib/ui.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
+import { ctx } from '../lib/session.js';
 
 interface Bar { phase: 'collecting' | 'showing' | 'final'; position: number | null; participationHint: string }
 interface RoundInfo { id: string; season: string; status: string; richtwertCents: number; displayMode: string }
@@ -18,7 +19,9 @@ export function renderBidding(root: HTMLElement, projector = false): void {
   const box = el('div', {}, spinner());
   mount(root, box);
 
-  const roundId = new URLSearchParams(location.hash.split('?')[1] ?? '').get('round');
+  // Prefer an explicit round in the URL (projector links), else the open one.
+  const roundId = new URLSearchParams(location.hash.split('?')[1] ?? '').get('round')
+    ?? ctx().openRound?.id ?? null;
 
   void (async () => {
     let round: RoundInfo | null = null;
@@ -53,9 +56,10 @@ export function renderBidding(root: HTMLElement, projector = false): void {
         el('button', {
           class: 'btn btn-primary btn-block btn-lg',
           onclick: async () => {
+            if (!ctx().household?.id) { toast(t('household.why'), 'warn'); return; }
             try {
               await post(`/api/bidding/rounds/${round!.id}/bids`, {
-                householdId: localStorage.getItem('solawi.household') ?? 'self',
+                householdId: ctx().household?.id ?? '',
                 amountCents: Math.round(Number(amount.value) * 100),
               });
               toast(t('obs.saved'));

@@ -41,6 +41,15 @@
       "path": "./packages/app"
     },
     {
+      "path": "./packages/modules/distribution"
+    },
+    {
+      "path": "./packages/modules/inventory"
+    },
+    {
+      "path": "./packages/modules/finance"
+    },
+    {
       "path": "./packages/modules/feedback"
     },
     {

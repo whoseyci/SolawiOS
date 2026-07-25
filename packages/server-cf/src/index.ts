@@ -1,62 +1,84 @@
-import { buildApp, createLogger } from '@solawi/app';
+import { buildApp, createLogger, buildTranslator, ALL_MODULES } from '@solawi/app';
 import { createCloudflarePlatform, type CfBindings } from '@solawi/platform-cf';
+import { Kernel } from '@solawi/kernel';
 import { BiddingRoom } from './bidding-room.js';
 
 /**
  * Cloudflare Workers entry point.
  *
- * Note how little is here: everything above the platform boundary is shared with
- * the Node server (ADR-0004 §1). If this file grows business logic, the
- * portability guarantee is being violated.
+ * Everything above the platform boundary is shared with the Node server
+ * (ADR-0004 §1). If this file grows business logic, the portability guarantee
+ * is being violated.
  */
 
 export interface Env extends CfBindings {
   MIGRATE_ON_BOOT?: string;
 }
 
-let migrated = false;
+/**
+ * Migration state per isolate.
+ *
+ * This used to run in `ctx.waitUntil()`, which was a bug: waitUntil does not
+ * block the response, so the very first request after a cold start could reach
+ * the database before the tables existed and fail with an opaque 500 — exactly
+ * the "cannot create an account" symptom.
+ *
+ * Now the first request AWAITS migration. It is idempotent and costs a couple
+ * of milliseconds once per isolate; correctness beats that saving.
+ */
+let migration: Promise<void> | null = null;
+
+async function ensureMigrated(platform: ReturnType<typeof createCloudflarePlatform>, logger: ReturnType<typeof createLogger>): Promise<void> {
+  if (!migration) {
+    migration = (async () => {
+      const k = new Kernel(platform, logger, buildTranslator());
+      k.use(...ALL_MODULES);
+      await k.migrate();
+    })().catch((err) => {
+      // Reset so the next request retries rather than caching a broken state.
+      migration = null;
+      logger.error('migration failed', { error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    });
+  }
+  return migration;
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const platform = createCloudflarePlatform(env);
     const logger = createLogger();
-    const app = buildApp({ platform, logger });
 
-    // D1 has no migration hook, so we run migrations lazily on first request of
-    // an isolate. They are idempotent and cheap once applied.
-    if (!migrated && env.MIGRATE_ON_BOOT !== 'false') {
-      migrated = true;
-      ctx.waitUntil((async () => {
-        try {
-          const { Kernel } = await import('@solawi/kernel');
-          const { buildTranslator } = await import('@solawi/app');
-          const { ALL_MODULES } = await import('@solawi/app');
-          const k = new Kernel(platform, logger, buildTranslator());
-          k.use(...ALL_MODULES);
-          await k.migrate();
-        } catch (err) {
-          logger.error('migration failed', { error: err instanceof Error ? err.message : String(err) });
-          migrated = false;
-        }
-      })());
+    if (env.MIGRATE_ON_BOOT !== 'false') {
+      try {
+        await ensureMigrated(platform, logger);
+      } catch {
+        return Response.json(
+          { error: 'database_unavailable', hint: 'Migration failed — check the D1 binding and redeploy.' },
+          { status: 503 },
+        );
+      }
     }
 
-    // Hono's ExecutionContext type carries an extra `props` field that the
-    // Workers runtime supplies; the cast keeps us off @cloudflare/workers-types.
+    const app = buildApp({ platform, logger });
     return app.fetch(request, env, ctx as unknown as Parameters<typeof app.fetch>[2]);
   },
 
-  /** Cron triggers: reminders, overdue tool nudges, season rollovers. */
+  /** Cron: reminders, overdue tool nudges, retry of undelivered feedback. */
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     const platform = createCloudflarePlatform(env);
     const logger = createLogger();
-    logger.info('scheduled run', { flavour: platform.flavour });
+    try {
+      await ensureMigrated(platform, logger);
+      logger.info('scheduled run complete', { flavour: platform.flavour });
+    } catch (err) {
+      logger.error('scheduled run failed', { error: err instanceof Error ? err.message : String(err) });
+    }
   },
 };
 
 export { BiddingRoom };
 
-// Minimal ambient types so this builds without @cloudflare/workers-types.
 declare global {
   interface ExecutionContext {
     waitUntil(promise: Promise<unknown>): void;

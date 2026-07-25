@@ -7,6 +7,9 @@ import { membersModule } from '@solawi/module-members';
 import { biddingModule } from '@solawi/module-bidding';
 import { observationsModule } from '@solawi/module-observations';
 import { feedbackModule } from '@solawi/module-feedback';
+import { distributionModule } from '@solawi/module-distribution';
+import { inventoryModule } from '@solawi/module-inventory';
+import { financeModule } from '@solawi/module-finance';
 
 /**
  * Every module known to this build. Presence here does NOT mean a farm has it
@@ -22,6 +25,9 @@ export const ALL_MODULES: readonly SolawiModule[] = [
   biddingModule,
   observationsModule,
   feedbackModule,
+  distributionModule,
+  inventoryModule,
+  financeModule,
 ];
 
 /** Recommendation engine for the five setup questions (docs/40 §1). */
@@ -58,6 +64,12 @@ export function recommendModules(a: SetupAnswers): Recommendation[] {
   if (a.phase !== 'founding') {
     out.push({ moduleId: 'members', reason: 'Haushalte, Anteile und Abwesenheiten verwalten.' });
   }
+
+  if (a.distribution !== 'self_harvest') {
+    out.push({ moduleId: 'distribution', reason: 'Verteilung, Depots und Abwesenheiten organisieren.' });
+  }
+  out.push({ moduleId: 'inventory', reason: 'Werkzeug: wo ist es, wer hat es, was ist fällig.' });
+  out.push({ moduleId: 'finance', reason: 'Vollkostenrechnung und Einnahmequellen im Blick.' });
 
   if (a.contributions === 'bidding') {
     out.push({ moduleId: 'bidding', reason: 'Ihr nutzt eine Bieterrunde — inklusive Richtwert über Anteilsäquivalente.' });
