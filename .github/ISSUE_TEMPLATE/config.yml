@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Fehler direkt aus der App melden
+    url: https://github.com/whoseyci/solawios/blob/main/docs/60-cloudflare-builds.md
+    about: In Solawi OS gibt es "Fehler melden" — das legt hier automatisch ein Issue an, mit Kontext und ohne Mitgliedsdaten.

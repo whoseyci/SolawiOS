@@ -1,0 +1,60 @@
+# Cloudflare deployment (ADR-0004).
+#
+# Multi-tenant by default: one D1 database holds many farms, every table carries
+# org_id, and every query filters on it. For farms that want hard isolation, the
+# same schema runs in a per-farm D1 database — no code changes required.
+
+name = "solawi-os"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------- D1 (SQLite)
+# Create with:  wrangler d1 create solawi-os
+# Then paste the returned database_id here.
+[[d1_databases]]
+binding = "DB"
+database_name = "solawi-os"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
+
+# ------------------------------------------------------------- R2 (blobs)
+# Photos and exports. Optional: the app degrades gracefully without it.
+# Create with:  wrangler r2 bucket create solawi-os-blobs
+[[r2_buckets]]
+binding = "BLOBS"
+bucket_name = "solawi-os-blobs"
+
+# ------------------------------------------------------------------ KV (cache)
+# Create with:  wrangler kv namespace create CACHE
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_YOUR_KV_ID"
+
+# ------------------------------------------------- Durable Objects (bidding)
+# One instance per Bieterrunde: owns WebSocket fan-out and the batching rules.
+[[durable_objects.bindings]]
+name = "BIDDING"
+class_name = "BiddingRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BiddingRoom"]
+
+# ------------------------------------------------------------------- Queues
+# Optional. Uncomment after: wrangler queues create solawi-jobs
+# [[queues.producers]]
+# binding = "JOBS"
+# queue = "solawi-jobs"
+#
+# [[queues.consumers]]
+# queue = "solawi-jobs"
+
+# ------------------------------------------------------------------- Cron
+[triggers]
+crons = ["0 6 * * *"]
+
+[vars]
+MIGRATE_ON_BOOT = "true"

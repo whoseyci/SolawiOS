@@ -1,0 +1,53 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/platform"
+    },
+    {
+      "path": "./packages/i18n"
+    },
+    {
+      "path": "./packages/kernel"
+    },
+    {
+      "path": "./packages/platform-node"
+    },
+    {
+      "path": "./packages/platform-cf"
+    },
+    {
+      "path": "./packages/modules/founding"
+    },
+    {
+      "path": "./packages/modules/land"
+    },
+    {
+      "path": "./packages/modules/cultivation"
+    },
+    {
+      "path": "./packages/modules/tasks"
+    },
+    {
+      "path": "./packages/modules/members"
+    },
+    {
+      "path": "./packages/modules/bidding"
+    },
+    {
+      "path": "./packages/modules/observations"
+    },
+    {
+      "path": "./packages/app"
+    },
+    {
+      "path": "./packages/modules/feedback"
+    },
+    {
+      "path": "./packages/server-node"
+    },
+    {
+      "path": "./packages/server-cf"
+    }
+  ]
+}

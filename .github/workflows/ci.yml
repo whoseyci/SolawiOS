@@ -1,0 +1,81 @@
+# CI enforces ADR-0004: BOTH platform targets stay green.
+#
+# This is not ceremony. A self-hosting path that is not continuously tested
+# degrades into a broken path within two releases, and "self-hosting is
+# encouraged" quietly becomes false. So the Node target is a required check,
+# not a nice-to-have.
+
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  verify:
+    name: Typecheck, test, both platforms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (all packages)
+        run: npx tsc --build --force
+
+      - name: Test
+        run: npx vitest run
+
+      # --- Self-hosted target: must actually boot and serve ---
+      - name: Smoke test — Node / SQLite
+        run: |
+          node packages/server-node/dist/index.js &
+          SERVER_PID=$!
+          sleep 3
+          curl -fsS localhost:8787/health | tee /dev/stderr | grep -q '"flavour":"node"'
+          kill $SERVER_PID
+        env:
+          DATABASE_PATH: ':memory:'
+
+      # --- Cloudflare target: must build for the Workers runtime ---
+      - name: Build check — Cloudflare Worker
+        working-directory: packages/server-cf
+        run: npx wrangler deploy --dry-run --outdir /tmp/cf-build
+        env:
+          CLOUDFLARE_API_TOKEN: dummy-for-dry-run
+
+  privacy-guarantees:
+    name: Privacy guarantees (ADR-0005 / 0007 / 0008)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm }
+      - run: npm ci
+      - run: npx tsc --build
+
+      - name: Privacy test suite
+        run: npx vitest run tests/privacy.test.ts
+
+      # A grep is crude, but this specific mistake is easy to make and expensive
+      # to discover later, so it is worth failing the build over.
+      - name: Assert observations carry no person attribution
+        run: |
+          if grep -nE "person_id|user_id|assignee|worker_id|created_by" \
+               packages/modules/observations/src/index.ts; then
+            echo "::error::ADR-0008 violated: observation must not carry person attribution"
+            exit 1
+          fi
+          echo "OK: no attribution columns in observations"
+
+      - name: Assert modules import no platform-specific types
+        run: |
+          if grep -rnE "from '@solawi/platform-(cf|node)'" packages/modules/ packages/kernel/src; then
+            echo "::error::AGENTS.md §3.8 violated: modules must not import a platform implementation"
+            exit 1
+          fi
+          echo "OK: no platform leakage into modules"

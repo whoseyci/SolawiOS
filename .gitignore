@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+*.tsbuildinfo
+.wrangler/
+.dev.vars
+
+# secrets — never commit
+.env
+.env.*
+*.pat

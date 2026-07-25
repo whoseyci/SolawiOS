@@ -1,0 +1,35 @@
+{
+  "name": "solawi-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Das Betriebssystem f\u00fcr Solidarische Landwirtschaft \u2014 modular, mehrsprachig, offen.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "packages/modules/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "npm run dev --workspace @solawi/server-node",
+    "cf:dev": "npm run dev --workspace @solawi/server-cf",
+    "cf:deploy": "npm run deploy --workspace @solawi/server-cf",
+    "verify": "npm run typecheck && npm run test",
+    "setup": "bash scripts/setup.sh",
+    "demo": "npm run build --silent && node scripts/demo.mjs",
+    "deploy": "bash scripts/deploy-cf.sh",
+    "schema": "npm run build --silent && node scripts/generate-schema.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@solawi/server-cf",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "wrangler dev",
+    "deploy": "npm run schema --prefix ../.. && wrangler d1 execute solawi-os --remote --file=./schema.sql --yes && wrangler deploy",
+    "deploy:worker-only": "wrangler deploy",
+    "db:local": "wrangler d1 execute solawi-os --local --file=./schema.sql --yes"
+  },
+  "dependencies": {
+    "@solawi/app": "*",
+    "@solawi/kernel": "*",
+    "@solawi/platform-cf": "*",
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}

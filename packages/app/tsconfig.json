@@ -1,0 +1,45 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "references": [
+    {
+      "path": "../kernel"
+    },
+    {
+      "path": "../platform"
+    },
+    {
+      "path": "../i18n"
+    },
+    {
+      "path": "../modules/founding"
+    },
+    {
+      "path": "../modules/land"
+    },
+    {
+      "path": "../modules/cultivation"
+    },
+    {
+      "path": "../modules/tasks"
+    },
+    {
+      "path": "../modules/members"
+    },
+    {
+      "path": "../modules/bidding"
+    },
+    {
+      "path": "../modules/observations"
+    },
+    {
+      "path": "../modules/feedback"
+    }
+  ]
+}
