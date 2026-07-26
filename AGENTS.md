@@ -171,6 +171,16 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Deploys had been silently failing since the map release.** The live site
+  served a stale bundle for two releases while fixes sat on `main`. Cause: schema v2/v3 added
+  `ALTER TABLE ADD COLUMN`, which SQLite cannot make idempotent. The deploy command is a `&&`
+  chain, so from the second deploy on, `duplicate column name` aborted it **before**
+  `wrangler deploy`. Schema generation now emits three parts — `schema.sql` (idempotent),
+  `schema-additive.json` (ALTERs applied one at a time, tolerating duplicate-column),
+  `schema-indexes.sql` (last, because `idx_task_board` references a column the additive
+  phase creates). `tests/schema.test.ts` applies the whole thing three times against a real
+  SQLite database. **Lesson: a green build log is not a deployment.** Verify the artefact
+  the site actually serves.
 - `2026-07-26` — **Two icon bugs, both visible in one screenshot.** (a) Every icon rendered
   upside down: I had wrapped the Phosphor paths in `scale(1,-1)`, assuming selection.json
   used an inverted Y axis. Rendering `caret-down` both ways proved it does not — the flip
