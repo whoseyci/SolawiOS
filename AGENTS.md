@@ -171,6 +171,17 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Offline map is a tile pyramid, not a stitched image.** The single-snapshot
+  approach was wrong and I recommended it: one image has ONE resolution, so zooming past the
+  capture level just upscaled the same pixels (the reported blurriness), and a 1.5 km farm
+  would have needed ~244 MB of decoded RGBA — iOS kills a tab well before that. Replaced with
+  `lib/tilestore.ts` (IndexedDB pyramid, z16–z19) plus `lib/offline-layer.ts`, a Leaflet
+  TileLayer served from storage. The whole pyramid costs only **1.33× the deepest level**
+  because each zoom up is a quarter of the tiles: a 600 m farm is ~200 tiles / 3.5 MB for OSM
+  and 4.6 MB satellite — **both layers, every zoom, under 10 MB**. Downloads are per-layer,
+  resumable (existing tiles skipped), request `navigator.storage.persist()` so tiles are not
+  evicted, and check quota first. `allowNetwork: false` means a downloaded farm never silently
+  refetches. 92 tests.
 - `2026-07-26` — **Snapshot becomes the basemap; vertex deletion fixed.** The saved image is
   now the background: once captured, `setBase()` installs an `ImageOverlay` and **removes the
   tile layer entirely** — no tile requests at all. "Extend" brings live tiles back for one

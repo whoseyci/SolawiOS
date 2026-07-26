@@ -8,9 +8,10 @@ import { openBedDetail } from './bed-detail.js';
 import { MapEditor, type EditableShape } from './map-editor.js';
 import { createSearcher, type Place } from '../lib/geosearch.js';
 import {
-  captureSnapshot, chooseZoom, saveSnapshot, loadSnapshot, downloadSnapshot,
-  deleteSnapshot, type SnapshotBounds,
-} from '../lib/snapshot.js';
+  downloadLayer, allMeta, getMeta, clearLayer, estimate, quota, requestPersistence,
+  TILE_SOURCES, type LayerId, type PyramidMeta, type TileBounds,
+} from '../lib/tilestore.js';
+import { createOfflineLayer } from '../lib/offline-layer.js';
 import { suggestFields } from '../lib/suggest-fields.js';
 
 /**
@@ -96,11 +97,9 @@ export function renderMap(root: HTMLElement): void {
   let data: MapData | null = null;
   let dateOffset = 0;
   let editor: MapEditor | null = null;
-  /** Saved basemap image. When present, tiles are never requested. */
-  let snapshotLayer: L.ImageOverlay | null = null;
-  let snapshotUrl: string | null = null;
-  let snapshotInfo: { bounds: SnapshotBounds; zoom: number; bytes: number; capturedAt: string } | null = null;
-  /** Temporarily show live tiles while extending coverage. */
+  /** Downloaded tile pyramids, one per layer. When present, nothing is fetched. */
+  let offline: PyramidMeta[] = [];
+  /** Temporarily allow the network so coverage can be extended. */
   let liveOverride = false;
   let editing = false;
   /** Rectangle drawing: two opposite corners instead of tracing an outline. */
@@ -133,8 +132,8 @@ export function renderMap(root: HTMLElement): void {
       wheelPxPerZoomLevel: 90,
     }).setView(centre, zoom);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    const hasSnapshot = await installSnapshot();
-    if (!hasSnapshot) setBase(s.baseLayer ?? 'osm');
+    await refreshOffline();
+    setBase(s.baseLayer ?? 'osm');
     shapes = L.layerGroup().addTo(map);
 
     map.on('moveend zoomend', renderEdgeMarkers);
@@ -174,54 +173,39 @@ export function renderMap(root: HTMLElement): void {
   /**
    * Install the background.
    *
-   * Once a farm has saved a snapshot, that image IS the basemap: no tile
-   * requests, no attribution calls, nothing fetched. The farm decides when to
-   * refresh it. `liveOverride` temporarily brings tiles back so coverage can be
-   * extended, and is never sticky.
+   * If this farm has downloaded the layer, tiles come from IndexedDB and the
+   * network is never touched. Unlike the old stitched image, a pyramid keeps
+   * every zoom level sharp.
    */
   function setBase(kind: BaseLayer): void {
     if (!map) return;
+    if (baseTile) { map.removeLayer(baseTile); baseTile = null; }
 
-    if (snapshotLayer && !liveOverride) {
-      if (baseTile) { map.removeLayer(baseTile); baseTile = null; }
-      return;
+    const stored = offline.find((m) => m.layer === kind);
+    if (stored && !liveOverride) {
+      baseTile = createOfflineLayer({
+        org: auth.org ?? 'default',
+        layer: kind as LayerId,
+        allowNetwork: false,
+        maxZoom: MAX_ZOOM,
+        attribution: `${TILE_SOURCES[kind as LayerId].label} · ${t('map.offlineMap')}`,
+      }).addTo(map);
+    } else {
+      const cfg = LAYERS[kind] ?? LAYERS.osm;
+      baseTile = L.tileLayer(cfg.url, {
+        attribution: cfg.attribution,
+        maxNativeZoom: cfg.maxNativeZoom,
+        maxZoom: MAX_ZOOM,
+      }).addTo(map);
     }
-
-    if (baseTile) map.removeLayer(baseTile);
-    const cfg = LAYERS[kind] ?? LAYERS.osm;
-    baseTile = L.tileLayer(cfg.url, {
-      attribution: cfg.attribution,
-      maxNativeZoom: cfg.maxNativeZoom,
-      maxZoom: MAX_ZOOM,
-    }).addTo(map);
     baseTile.bringToBack();
   }
 
-  /** Put the stored image on the map and drop the tile layer entirely. */
-  async function installSnapshot(): Promise<boolean> {
-    if (!map) return false;
-    const stored = await loadSnapshot(auth.org ?? 'default').catch(() => null);
-    if (!stored) return false;
-
-    snapshotUrl && URL.revokeObjectURL(snapshotUrl);
-    snapshotUrl = URL.createObjectURL(stored.blob);
-    snapshotInfo = {
-      bounds: stored.bounds, zoom: stored.zoom,
-      bytes: stored.bytes, capturedAt: stored.capturedAt,
-    };
-
-    snapshotLayer?.remove();
-    snapshotLayer = L.imageOverlay(snapshotUrl, [
-      [stored.bounds.south, stored.bounds.west],
-      [stored.bounds.north, stored.bounds.east],
-    ], { opacity: 1, interactive: false }).addTo(map);
-    snapshotLayer.bringToBack();
-
-    if (baseTile) { map.removeLayer(baseTile); baseTile = null; }
-    return true;
+  async function refreshOffline(): Promise<void> {
+    offline = await allMeta(auth.org ?? 'default').catch(() => []);
   }
 
-  /** Bring live tiles back so the farm can capture a wider area. */
+  /** Bring live tiles back so the farm can widen its downloaded area. */
   function extendCoverage(): void {
     liveOverride = true;
     setBase(data?.settings.baseLayer ?? 'osm');
@@ -415,16 +399,23 @@ export function renderMap(root: HTMLElement): void {
 
     mount(overlay,
       el('div', { class: 'map-bar' },
-        snapshotLayer && !liveOverride
+        offline.length > 0 && !liveOverride
           ? el('div', { class: 'seg snap-chip' },
-              el('button', {
-                class: 'seg-btn on', title: t('map.usingSnapshot'), onclick: snapshotSheet,
+              ...(['osm', 'satellite'] as BaseLayer[]).map((k) => el('button', {
+                class: `seg-btn ${data!.settings.baseLayer === k ? 'on' : ''}`,
+                title: offline.some((m) => m.layer === k) ? t('map.offlineMap') : t('map.notDownloaded'),
+                onclick: () => {
+                  data!.settings.baseLayer = k;
+                  setBase(k); renderControls();
+                  if (can('grower')) void post('/api/land/map/settings', { baseLayer: k }).catch(() => {});
+                },
               },
-                icon('floppy', 16),
-                el('span', { class: 'seg-label' }, t('map.offlineMap'))),
+                icon(k === 'satellite' ? 'globe' : 'map', 16),
+                el('span', { class: 'seg-label' }, t(`map.layer.${k}`)),
+                offline.some((m) => m.layer === k) && el('span', { class: 'dl-dot' }))),
               el('button', {
-                class: 'seg-btn', title: t('map.extend'), onclick: extendCoverage,
-              }, icon('globe', 16), el('span', { class: 'seg-label' }, t('map.extend'))),
+                class: 'seg-btn', title: t('map.offlineMap'), onclick: offlineSheet,
+              }, icon('floppy', 16)),
             )
           : el('div', { class: 'seg' },
           ...(['osm', 'satellite'] as BaseLayer[]).map((k) =>
@@ -488,7 +479,7 @@ export function renderMap(root: HTMLElement): void {
                 () => startDraw({ target: 'bed', shape: 'poly' })),
               editing && toolBtn('barn', t('map.drawFeature'), featureKindSheet),
               editing && toolBtn('crosshair', t('map.setCentre'), saveCentre),
-              toolBtn('floppy', t('map.capture'), () => void captureArea()),
+              toolBtn('floppy', t('map.offlineMap'), offlineSheet),
             ),
       ),
     );
@@ -534,101 +525,127 @@ export function renderMap(root: HTMLElement): void {
   }
 
   /**
-   * #3 + #6: store the current view as one geo-referenced image.
+   * Download the visible area as a tile pyramid, for one or both layers.
    *
-   * The bounds are saved with the pixels, so the snapshot can be re-projected
-   * at any zoom without the shapes drifting off it.
+   * Both layers together for a 600 m farm is roughly 8 MB and about 400 tiles,
+   * because each zoom level up costs only a quarter of the one below.
    */
-  async function captureArea(): Promise<void> {
-    if (!map || !data) return;
+  function offlineSheet(): void {
+    if (!map) return;
     const b = map.getBounds();
-    const bounds = {
+    const bounds: TileBounds = {
       north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest(),
     };
-    const zoom = chooseZoom(bounds);
-    const cfg = LAYERS[data.settings.baseLayer] ?? LAYERS.osm;
 
-    const status = el('div', { class: 'banner banner-offline' }, t('map.capturing', { done: 0, total: '…' }));
-    const body = el('div', {}, status,
-      el('p', { class: 'hint' }, t('map.captureHint', { zoom })));
-    const close = sheet(t('map.capture'), body);
+    const maxZoomSel = el('select', {},
+      ...[17, 18, 19].map((z) => el('option', { value: String(z), selected: z === 19 },
+        t('map.zoomDetail', { z, m: (156543.03 * 0.6428 / 2 ** z).toFixed(2) }))),
+    ) as HTMLSelectElement;
 
-    try {
-      const snap = await captureSnapshot(bounds, cfg.url, {
-        zoom,
-        onProgress: (pr) => {
-          status.textContent = t('map.capturing', { done: pr.done, total: pr.total });
-        },
-      });
-      await saveSnapshot(auth.org ?? 'default', snap);
-      await post('/api/land/map/settings', {
-        snapshotBounds: JSON.stringify(bounds),
-        centreLat: (bounds.north + bounds.south) / 2,
-        centreLon: (bounds.east + bounds.west) / 2,
-        zoom: map.getZoom(),
-        baseLayer: data.settings.baseLayer,
-      }).catch(() => {});
+    const picks = new Map<LayerId, HTMLInputElement>();
+    const sizeLine = el('p', { class: 'muted' }, '');
+    const body = el('div', {});
+    const close = sheet(t('map.offlineMap'), body);
 
-      liveOverride = false;
-      await installSnapshot();
-      renderControls();
+    const recalc = (): void => {
+      const maxZoom = Number(maxZoomSel.value);
+      let tiles = 0, bytes = 0;
+      for (const [layer, cb] of picks) {
+        if (!cb.checked) continue;
+        const e = estimate(bounds, 16, maxZoom, layer);
+        tiles += e.count; bytes += e.bytes;
+      }
+      sizeLine.textContent = tiles === 0
+        ? t('map.pickLayer')
+        : t('map.estimate', { tiles, mb: (bytes / 1048576).toFixed(1) });
+    };
 
-      mount(body,
-        el('div', { class: 'banner banner-ok' },
-          t('map.captured', { mb: (snap.bytes / 1048576).toFixed(2), zoom: snap.zoom })),
-        el('p', { class: 'hint' }, t('map.nowOffline')),
-        el('button', {
-          class: 'btn btn-block', onclick: () => downloadSnapshot(snap, data!.settings.baseLayer),
-        }, icon('floppy', 16), t('map.download')),
-        can('grower') && el('button', {
-          class: 'btn btn-primary btn-block', style: 'margin-top:.4rem',
-          onclick: () => { close(); void proposeFields(snap.blob, snap.bounds); },
-        }, icon('magnifying', 16), t('map.suggestFields')),
+    const rows = (['osm', 'satellite'] as LayerId[]).map((layer) => {
+      const have = offline.find((m) => m.layer === layer);
+      const cb = el('input', { type: 'checkbox', checked: !have }) as HTMLInputElement;
+      cb.addEventListener('change', recalc);
+      picks.set(layer, cb);
+      return el('label', { class: 'row-between dl-row' },
+        el('span', {},
+          el('strong', {}, t(`map.layer.${layer}`)),
+          have && el('span', { class: 'badge' },
+            t('map.haveTiles', { n: have.tileCount, mb: (have.bytes / 1048576).toFixed(1) })),
+        ),
+        cb,
       );
-    } catch {
-      mount(body, el('div', { class: 'banner banner-error' }, t('map.captureFailed')));
+    });
+
+    mount(body,
+      el('p', { class: 'hint' }, t('map.downloadHint')),
+      ...rows,
+      el('div', { class: 'field' }, el('label', {}, t('map.maxDetail')), maxZoomSel),
+      sizeLine,
+      el('button', {
+        class: 'btn btn-primary btn-block', onclick: () => void run(),
+      }, icon('floppy', 16), t('map.download')),
+      offline.length > 0 && el('button', {
+        class: 'btn btn-block', style: 'margin-top:.4rem', onclick: () => { close(); extendCoverage(); },
+      }, icon('globe', 16), t('map.extend')),
+      offline.length > 0 && el('button', {
+        class: 'btn btn-danger btn-block', style: 'margin-top:.4rem',
+        onclick: async () => {
+          for (const m of offline) await clearLayer(auth.org ?? 'default', m.layer);
+          await refreshOffline();
+          liveOverride = false;
+          setBase(data?.settings.baseLayer ?? 'osm');
+          renderControls(); close();
+        },
+      }, icon('trash', 16), t('map.dropSnapshot')),
+    );
+    maxZoomSel.addEventListener('change', recalc);
+    recalc();
+
+    async function run(): Promise<void> {
+      const chosen = [...picks].filter(([, cb]) => cb.checked).map(([l]) => l);
+      if (chosen.length === 0) return;
+      const maxZoom = Number(maxZoomSel.value);
+
+      // Without this the browser may evict the tiles under storage pressure.
+      await requestPersistence();
+      const q = await quota();
+      const needed = chosen.reduce((sum, l) => sum + estimate(bounds, 16, maxZoom, l).bytes, 0);
+      if (q && needed > q.available) {
+        mount(body, el('div', { class: 'banner banner-error' }, t('map.noSpace')));
+        return;
+      }
+
+      const bar = el('div', { class: 'dl-bar' }, el('div', { class: 'dl-fill' }));
+      const label = el('p', { class: 'muted' }, '');
+      mount(body, el('p', {}, t('map.downloading')), bar, label);
+
+      for (const layer of chosen) {
+        await downloadLayer(auth.org ?? 'default', layer, bounds, {
+          minZoom: 16, maxZoom,
+          onProgress: (pr) => {
+            const pct = Math.round((pr.done / pr.total) * 100);
+            (bar.firstChild as HTMLElement).style.width = `${pct}%`;
+            label.textContent = t('map.downloadingLayer', {
+              layer: t(`map.layer.${layer}`), done: pr.done, total: pr.total,
+              mb: (pr.bytes / 1048576).toFixed(1),
+            });
+          },
+        });
+      }
+
+      await refreshOffline();
+      liveOverride = false;
+      setBase(data?.settings.baseLayer ?? 'osm');
+      renderControls();
+      mount(body,
+        el('div', { class: 'banner banner-ok' }, t('map.downloadDone')),
+        el('p', { class: 'hint' }, t('map.nowOffline')),
+      );
+      setTimeout(close, 1800);
     }
   }
 
-  /** What is stored, how big, and how to replace or drop it. */
-  function snapshotSheet(): void {
-    if (!snapshotInfo) return;
-    const info = snapshotInfo;
-    const b = info.bounds;
-    const widthM = (b.east - b.west) * 111_320
-      * Math.cos(((b.north + b.south) / 2 * Math.PI) / 180);
-    const heightM = (b.north - b.south) * 111_320;
-
-    const body = el('div', {},
-      el('p', {}, t('map.snapshotStored', {
-        mb: (info.bytes / 1048576).toFixed(2), zoom: info.zoom,
-      })),
-      el('p', { class: 'muted' }, t('map.snapshotArea', {
-        w: Math.round(widthM), h: Math.round(heightM), date: fmt.date(info.capturedAt),
-      })),
-      el('p', { class: 'hint' }, t('map.nowOffline')),
-      el('div', { class: 'stack', style: 'margin-top:.7rem' },
-        el('button', { class: 'btn btn-block', onclick: () => { close(); extendCoverage(); } },
-          icon('globe', 16), t('map.extend')),
-        el('button', {
-          class: 'btn btn-danger btn-block',
-          onclick: async () => {
-            await deleteSnapshot(auth.org ?? 'default');
-            snapshotLayer?.remove(); snapshotLayer = null;
-            if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
-            snapshotInfo = null; liveOverride = false;
-            setBase(data?.settings.baseLayer ?? 'osm');
-            renderControls();
-            close();
-          },
-        }, icon('trash', 16), t('map.dropSnapshot')),
-      ),
-    );
-    const close = sheet(t('map.offlineMap'), body);
-  }
-
   /** #7: propose outlines from the imagery, accepted one at a time. */
-  async function proposeFields(blob: Blob, bounds: SnapshotBounds): Promise<void> {
+  async function proposeFields(blob: Blob, bounds: TileBounds): Promise<void> {
     const img = new Image();
     img.src = URL.createObjectURL(blob);
     await new Promise((r) => { img.onload = r; });

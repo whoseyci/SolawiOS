@@ -509,3 +509,21 @@ html, body {
    not a toggle: filled, with the escape hatch beside it. */
 .snap-chip .seg-btn.on { background: var(--green-700); }
 .snap-chip .seg-btn:not(.on) { color: var(--ink-2); }
+
+/* A downloaded layer shows a dot in the switcher, so the farm can see at a
+   glance which basemaps work without a connection. */
+.dl-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green-600); display: inline-block; margin-left: .2rem;
+}
+.seg-btn.on .dl-dot { background: #fff; }
+.dl-row { padding: .45rem 0; border-bottom: 1px solid var(--line-2); cursor: pointer; }
+.dl-row:last-of-type { border-bottom: none; }
+.dl-bar {
+  height: 8px; background: var(--line); border-radius: 999px;
+  overflow: hidden; margin: .5rem 0;
+}
+.dl-fill {
+  height: 100%; width: 0; background: var(--green-600);
+  transition: width .25s ease;
+}

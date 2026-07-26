@@ -293,3 +293,59 @@ describe('snapshot resolution', () => {
     }
   });
 });
+
+describe('offline tile pyramid', () => {
+  const lonToTileX = (lon: number, z: number) => Math.floor(((lon + 180) / 360) * 2 ** z);
+  const latToTileY = (lat: number, z: number) => {
+    const r = (lat * Math.PI) / 180;
+    return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z);
+  };
+  function count(b: { north: number; south: number; east: number; west: number },
+                 minZ: number, maxZ: number): number {
+    let n = 0;
+    for (let z = minZ; z <= maxZ; z++) {
+      n += (lonToTileX(b.east, z) - lonToTileX(b.west, z) + 1)
+         * (latToTileY(b.south, z) - latToTileY(b.north, z) + 1);
+    }
+    return n;
+  }
+  const square = (m: number) => {
+    const dLat = m / 111_320 / 2;
+    const dLon = m / (111_320 * Math.cos((50 * Math.PI) / 180)) / 2;
+    return { north: 50 + dLat, south: 50 - dLat, east: 8 + dLon, west: 8 - dLon };
+  };
+
+  it('costs little more than the deepest level alone', () => {
+    // Each zoom up is a quarter of the tiles, so the whole pyramid converges
+    // to ~1.33x the deepest level. This is why storing every zoom is cheap.
+    const b = square(600);
+    const deepest = count(b, 19, 19);
+    const pyramid = count(b, 16, 19);
+    expect(pyramid / deepest).toBeLessThan(1.8);
+    expect(pyramid).toBeGreaterThan(deepest);
+  });
+
+  it('keeps a typical farm well inside a sane download', () => {
+    // Both layers at ~22 KB per tile must stay in single-digit MB, or nobody
+    // will do it on rural LTE.
+    const tiles = count(square(600), 16, 19);
+    const megabytes = (tiles * 22_000 * 2) / 1_048_576;
+    expect(megabytes).toBeLessThan(15);
+  });
+
+  it('grows roughly with area, not with the square of the side', () => {
+    const small = count(square(400), 16, 19);
+    const large = count(square(800), 16, 19);
+    // Four times the area, so within a factor either side of 4x the tiles.
+    expect(large / small).toBeGreaterThan(2.5);
+    expect(large / small).toBeLessThan(6);
+  });
+
+  it('covers the requested bounds at every level', () => {
+    const b = square(600);
+    for (let z = 16; z <= 19; z++) {
+      expect(lonToTileX(b.east, z)).toBeGreaterThanOrEqual(lonToTileX(b.west, z));
+      expect(latToTileY(b.south, z)).toBeGreaterThanOrEqual(latToTileY(b.north, z));
+    }
+  });
+});
