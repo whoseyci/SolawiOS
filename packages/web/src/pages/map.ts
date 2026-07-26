@@ -2,10 +2,16 @@ import L from 'leaflet';
 import { el, mount, sheet, toast, spinner } from '../lib/ui.js';
 import { icon, iconMarkup } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
-import { get, post, del } from '../lib/api.js';
+import { get, post, del, auth } from '../lib/api.js';
 import { can } from '../lib/session.js';
 import { openBedDetail } from './bed-detail.js';
 import { MapEditor, type EditableShape } from './map-editor.js';
+import { createSearcher, type Place } from '../lib/geosearch.js';
+import {
+  captureSnapshot, chooseZoom, saveSnapshot, loadSnapshot, downloadSnapshot,
+  type SnapshotBounds,
+} from '../lib/snapshot.js';
+import { suggestFields } from '../lib/suggest-fields.js';
 
 /**
  * THE MAP — the main working view (docs/61 F2).
@@ -28,7 +34,7 @@ interface MapData {
   date: string;
 }
 
-type BaseLayer = 'osm' | 'satellite' | 'terrain';
+type BaseLayer = 'osm' | 'satellite';
 type DrawMode = null | { target: 'field' | 'bed' | 'feature'; kind?: string; shape?: 'poly' | 'rect' };
 
 /**
@@ -50,11 +56,6 @@ const LAYERS: Record<BaseLayer, { url: string; attribution: string; maxNativeZoo
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri, Maxar, Earthstar Geographics',
     maxNativeZoom: 19,
-  },
-  terrain: {
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenTopoMap, OpenStreetMap',
-    maxNativeZoom: 17,
   },
 };
 
@@ -81,9 +82,10 @@ const FEATURE_STYLE: Record<string, { colour: string; icon: string }> = {
 export function renderMap(root: HTMLElement): void {
   const mapEl = el('div', { class: 'mapview', id: 'solawi-map' });
   const editorPanel = el('div', { class: 'editor-dock' });
+  const edgeMarkers = el('div', { class: 'edge-markers' });
   const overlay = el('div', { class: 'map-overlay' });
   const legend = el('div', { class: 'map-legend' });
-  mount(root, el('div', { class: 'map-wrap' }, mapEl, overlay, legend, editorPanel));
+  mount(root, el('div', { class: 'map-wrap' }, mapEl, overlay, legend, editorPanel, edgeMarkers));
 
   let map: L.Map | null = null;
   let baseTile: L.TileLayer | null = null;
@@ -128,6 +130,7 @@ export function renderMap(root: HTMLElement): void {
     setBase(s.baseLayer ?? 'osm');
     shapes = L.layerGroup().addTo(map);
 
+    map.on('moveend zoomend', renderEdgeMarkers);
     map.on('click', onMapClick);
     map.on('dblclick', finishShape);
     map.on('mousemove', onMouseMove);
@@ -275,6 +278,60 @@ export function renderMap(root: HTMLElement): void {
     }
 
     renderLegend();
+    renderEdgeMarkers();
+  }
+
+  /**
+   * #4: shapes needing attention that are OFF SCREEN.
+   *
+   * A farm with plots in three villages cannot see them all at once, so a task
+   * on a distant field would otherwise be invisible. We clamp a marker to the
+   * edge of the viewport in the direction of the work, with the distance.
+   */
+  function renderEdgeMarkers(): void {
+    if (!map || !data) { mount(edgeMarkers); return; }
+    const view = map.getBounds();
+    const centre = map.getCenter();
+
+    const needing = new Map<string, { lat: number; lon: number; name: string; count: number }>();
+    for (const task of data.tasks) {
+      if (!task.bed_id) continue;
+      const bed = data.beds.find((b) => b.id === task.bed_id);
+      const geo = bed ? parse(bed.geometry) : null;
+      const c = geo ? centroid(geo) : null;
+      if (!bed || !c) continue;
+      const hit = needing.get(bed.id);
+      if (hit) hit.count++;
+      else needing.set(bed.id, { lat: c[0], lon: c[1], name: bed.name, count: 1 });
+    }
+
+    const offscreen = [...needing.values()].filter((n) => !view.contains([n.lat, n.lon]));
+    if (offscreen.length === 0) { mount(edgeMarkers); return; }
+
+    const rect = mapEl.getBoundingClientRect();
+    mount(edgeMarkers, ...offscreen.slice(0, 6).map((n) => {
+      // Direction from the centre, clamped to the viewport edge.
+      const p = map!.latLngToContainerPoint([n.lat, n.lon]);
+      const cx = rect.width / 2, cy = rect.height / 2;
+      const dx = p.x - cx, dy = p.y - cy;
+      const pad = 34;
+      const scale = Math.min(
+        (cx - pad) / Math.max(1, Math.abs(dx)),
+        (cy - pad) / Math.max(1, Math.abs(dy)),
+      );
+      const x = cx + dx * scale, y = cy + dy * scale;
+      const km = centre.distanceTo(L.latLng(n.lat, n.lon)) / 1000;
+
+      return el('button', {
+        class: 'edge-marker',
+        style: `left:${x}px;top:${y}px`,
+        title: `${n.name} — ${n.count}`,
+        onclick: () => map!.setView([n.lat, n.lon], Math.max(map!.getZoom(), 17)),
+      },
+        el('span', { class: 'edge-count' }, String(n.count)),
+        el('span', { class: 'edge-dist' }, km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`),
+      );
+    }));
   }
 
   function renderLegend(): void {
@@ -306,7 +363,7 @@ export function renderMap(root: HTMLElement): void {
     mount(overlay,
       el('div', { class: 'map-bar' },
         el('div', { class: 'seg' },
-          ...(['osm', 'satellite', 'terrain'] as BaseLayer[]).map((k) =>
+          ...(['osm', 'satellite'] as BaseLayer[]).map((k) =>
             el('button', {
               class: `seg-btn ${data!.settings.baseLayer === k ? 'on' : ''}`,
               title: t(`map.layer.${k}`),
@@ -316,10 +373,12 @@ export function renderMap(root: HTMLElement): void {
                 renderControls();
                 if (can('grower')) void post('/api/land/map/settings', { baseLayer: k }).catch(() => {});
               },
-            }, icon(k === 'satellite' ? 'globe' : k === 'terrain' ? 'tree' : 'map', 16),
+            }, icon(k === 'satellite' ? 'globe' : 'map', 16),
                el('span', { class: 'seg-label' }, t(`map.layer.${k}`))),
           ),
         ),
+
+        searchBox(),
 
         el('div', { class: 'map-date' },
           el('button', {
@@ -365,6 +424,7 @@ export function renderMap(root: HTMLElement): void {
                 () => startDraw({ target: 'bed', shape: 'poly' })),
               editing && toolBtn('barn', t('map.drawFeature'), featureKindSheet),
               editing && toolBtn('crosshair', t('map.setCentre'), saveCentre),
+              toolBtn('floppy', t('map.capture'), () => void captureArea()),
             ),
       ),
     );
@@ -376,6 +436,145 @@ export function renderMap(root: HTMLElement): void {
     else toast(t('editor.entered'), 'warn');
     renderControls();
     draw();
+  }
+
+  /** #6: find the farm instead of panning from a world view. */
+  function searchBox(): HTMLElement {
+    const input = el('input', {
+      type: 'search', class: 'map-search-input',
+      placeholder: t('map.searchPlaceholder'), 'aria-label': t('map.searchPlaceholder'),
+    }) as HTMLInputElement;
+    const results = el('div', { class: 'map-search-results' });
+
+    const search = createSearcher((places, error) => {
+      if (error) { mount(results, el('div', { class: 'search-empty' }, t('map.searchFailed'))); return; }
+      if (places.length === 0) { mount(results); return; }
+      mount(results, ...places.map((pl: Place) => el('button', {
+        class: 'search-hit',
+        onclick: () => {
+          if (!map) return;
+          if (pl.bounds) {
+            map.fitBounds([[pl.bounds.south, pl.bounds.west], [pl.bounds.north, pl.bounds.east]]);
+          } else {
+            map.setView([pl.lat, pl.lon], 17);
+          }
+          input.value = ''; mount(results);
+          toast(t('map.searchThenCapture'), 'warn');
+        },
+      }, pl.label)));
+    });
+
+    input.addEventListener('input', () => search(input.value));
+    input.addEventListener('blur', () => setTimeout(() => mount(results), 200));
+    return el('div', { class: 'map-search' }, input, results);
+  }
+
+  /**
+   * #3 + #6: store the current view as one geo-referenced image.
+   *
+   * The bounds are saved with the pixels, so the snapshot can be re-projected
+   * at any zoom without the shapes drifting off it.
+   */
+  async function captureArea(): Promise<void> {
+    if (!map || !data) return;
+    const b = map.getBounds();
+    const bounds = {
+      north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest(),
+    };
+    const zoom = chooseZoom(bounds);
+    const cfg = LAYERS[data.settings.baseLayer] ?? LAYERS.osm;
+
+    const status = el('div', { class: 'banner banner-offline' }, t('map.capturing', { done: 0, total: '…' }));
+    const body = el('div', {}, status,
+      el('p', { class: 'hint' }, t('map.captureHint', { zoom })));
+    const close = sheet(t('map.capture'), body);
+
+    try {
+      const snap = await captureSnapshot(bounds, cfg.url, {
+        zoom,
+        onProgress: (pr) => {
+          status.textContent = t('map.capturing', { done: pr.done, total: pr.total });
+        },
+      });
+      await saveSnapshot(auth.org ?? 'default', snap);
+      await post('/api/land/map/settings', {
+        snapshotBounds: JSON.stringify(bounds),
+        centreLat: (bounds.north + bounds.south) / 2,
+        centreLon: (bounds.east + bounds.west) / 2,
+        zoom: map.getZoom(),
+        baseLayer: data.settings.baseLayer,
+      }).catch(() => {});
+
+      mount(body,
+        el('div', { class: 'banner banner-ok' },
+          t('map.captured', { mb: (snap.bytes / 1048576).toFixed(2), zoom: snap.zoom })),
+        el('button', {
+          class: 'btn btn-block', onclick: () => downloadSnapshot(snap, data!.settings.baseLayer),
+        }, icon('floppy', 16), t('map.download')),
+        can('grower') && el('button', {
+          class: 'btn btn-primary btn-block', style: 'margin-top:.4rem',
+          onclick: () => { close(); void proposeFields(snap.blob, snap.bounds); },
+        }, icon('magnifying', 16), t('map.suggestFields')),
+      );
+    } catch {
+      mount(body, el('div', { class: 'banner banner-error' }, t('map.captureFailed')));
+    }
+  }
+
+  /** #7: propose outlines from the imagery, accepted one at a time. */
+  async function proposeFields(blob: Blob, bounds: SnapshotBounds): Promise<void> {
+    const img = new Image();
+    img.src = URL.createObjectURL(blob);
+    await new Promise((r) => { img.onload = r; });
+
+    const found = await suggestFields(img, bounds);
+    URL.revokeObjectURL(img.src);
+    if (found.length === 0) { toast(t('map.noSuggestions'), 'warn'); return; }
+
+    let index = 0;
+    let preview: L.Polygon | null = null;
+    const body = el('div', {});
+    const close = sheet(t('map.suggestFields'), body);
+
+    const show = (): void => {
+      preview?.remove();
+      if (index >= found.length) {
+        mount(body, el('p', { class: 'muted' }, t('map.suggestionsDone')));
+        setTimeout(close, 900);
+        void refresh();
+        return;
+      }
+      const sug = found[index]!;
+      preview = L.polygon(sug.ring.map((c: [number, number]) => [c[1], c[0]] as [number, number]), {
+        color: '#7c3aed', weight: 3, dashArray: '6 4', fillOpacity: 0.2,
+      }).addTo(map!);
+      map!.fitBounds(preview.getBounds(), { padding: [40, 40] });
+
+      mount(body,
+        el('p', {}, t('map.suggestionOf', { n: index + 1, total: found.length })),
+        el('p', { class: 'muted' },
+          `${fmt.num(sug.areaSqm / 10000, 2)} ha · ${Math.round(sug.confidence * 100)}%`),
+        el('p', { class: 'hint' }, t('map.suggestHint')),
+        el('div', { class: 'row', style: 'gap:.5rem;margin-top:.6rem' },
+          el('button', {
+            class: 'btn btn-primary', style: 'flex:1',
+            onclick: async () => {
+              const name = prompt(t('map.fieldName'));
+              if (name) {
+                await post('/api/land/fields', {
+                  name, geometry: { type: 'Polygon', coordinates: [[...sug.ring, sug.ring[0]!]] },
+                });
+              }
+              index++; show();
+            },
+          }, icon('check', 16), t('common.confirm')),
+          el('button', {
+            class: 'btn', style: 'flex:1', onclick: () => { index++; show(); },
+          }, icon('x', 16), t('map.reject')),
+        ),
+      );
+    };
+    show();
   }
 
   const toolBtn = (ic: string, label: string, onclick: () => void) =>

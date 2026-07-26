@@ -65,3 +65,43 @@ export interface MapSettings {
   zoom: number;
   baseLayer: 'osm' | 'satellite' | 'terrain';
 }
+
+
+/**
+ * What a farm calls its two levels of land.
+ *
+ * "Field" and "bed" are market-garden words. A field-vegetable farm calls the
+ * outer thing a Schlag and the inner one a Reihe or Satzfläche; a small CSA may
+ * use one word for both. Forcing our vocabulary on them makes the app feel
+ * wrong in a way that is hard to articulate but easy to feel.
+ *
+ * The DATA MODEL keeps two levels — an area and subdivisions of it — because
+ * that hierarchy is real. Only the LABELS are configurable.
+ */
+export const LAND_VOCABULARIES = {
+  market_garden: { outer: 'Schlag', inner: 'Beet', outerPl: 'Schläge', innerPl: 'Beete' },
+  field_crops:   { outer: 'Schlag', inner: 'Satzfläche', outerPl: 'Schläge', innerPl: 'Satzflächen' },
+  simple:        { outer: 'Fläche', inner: 'Abschnitt', outerPl: 'Flächen', innerPl: 'Abschnitte' },
+  orchard:       { outer: 'Anlage', inner: 'Reihe', outerPl: 'Anlagen', innerPl: 'Reihen' },
+} as const;
+
+export type VocabularyKey = keyof typeof LAND_VOCABULARIES;
+
+export interface LandVocabulary {
+  outer: string; inner: string; outerPl: string; innerPl: string;
+  /** True when the farm does not subdivide, so the inner level is hidden. */
+  singleLevel: boolean;
+}
+
+export const VOCAB_MIGRATION: Migration = {
+  version: 4,
+  description: 'land: per-farm vocabulary for the two land levels',
+  statements: [
+    `ALTER TABLE land_map_settings ADD COLUMN vocabulary TEXT NOT NULL DEFAULT 'market_garden'`,
+    `ALTER TABLE land_map_settings ADD COLUMN single_level INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE land_map_settings ADD COLUMN custom_outer TEXT`,
+    `ALTER TABLE land_map_settings ADD COLUMN custom_inner TEXT`,
+    `ALTER TABLE land_map_settings ADD COLUMN snapshot_key TEXT`,
+    `ALTER TABLE land_map_settings ADD COLUMN snapshot_bounds TEXT`,
+  ],
+};

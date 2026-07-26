@@ -3,7 +3,8 @@ import { requireOrg, requireRoleIn } from '../app.js';
 import {
   createField, listFields, createBed, listBeds, createBedGrid, addPerennial,
   getMapSettings, setMapSettings, createFeature, listFeatures, updateGeometry,
-  deleteFeature, renameBed, FEATURE_KINDS, type FeatureKind,
+  deleteFeature, renameBed, FEATURE_KINDS, getVocabulary, setVocabulary,
+  LAND_VOCABULARIES, type FeatureKind, type VocabularyKey,
 } from '@solawi/module-land';
 
 export function landRoutes(app: App): void {
@@ -98,7 +99,8 @@ export function landRoutes(app: App): void {
       ).catch(() => []);
     }
 
-    return c.json({ settings, fields, beds, features, plantings, tasks, date });
+    const vocabulary = await getVocabulary(ctx);
+    return c.json({ settings, vocabulary, fields, beds, features, plantings, tasks, date });
   });
 
   app.post('/api/land/map/settings', async (c) => {
@@ -156,5 +158,24 @@ export function landRoutes(app: App): void {
     const ctx = c.get('kernel').contextFor(orgId, 'land', c.get('locale'));
     await renameBed(ctx, c.req.param('id'), name);
     return c.json({ ok: true });
+  });
+
+  /** #2: farms name their land levels themselves. */
+  app.get('/api/land/vocabulary', async (c) => {
+    const { orgId } = requireOrg(c);
+    const ctx = c.get('kernel').contextFor(orgId, 'land', c.get('locale'));
+    return c.json({ vocabulary: await getVocabulary(ctx), presets: LAND_VOCABULARIES });
+  });
+
+  app.post('/api/land/vocabulary', async (c) => {
+    const { orgId, roles } = requireOrg(c);
+    requireRoleIn(roles, 'admin');
+    const body = await c.req.json<{
+      vocabulary?: VocabularyKey; singleLevel?: boolean;
+      customOuter?: string; customInner?: string;
+    }>();
+    const ctx = c.get('kernel').contextFor(orgId, 'land', c.get('locale'));
+    await setVocabulary(ctx, body);
+    return c.json({ ok: true, vocabulary: await getVocabulary(ctx) });
   });
 }

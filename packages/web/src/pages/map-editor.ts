@@ -5,7 +5,8 @@ import { t, fmt } from '../lib/i18n.js';
 import { post } from '../lib/api.js';
 import {
   Frame, polygon, outerRing, fitRect, rectToPoints, bounds, centroid, area,
-  translate, scaleAbout, rotateAbout, pointInRing, snapBounds, snapToGrid,
+  translate, pointInRing, snapBounds, snapToGrid,
+  resizeRectByCorner, moveVertex, splitEdge, removeVertex, rotationTowards,
   type Point, type Rect,
 } from '../lib/geo.js';
 
@@ -121,25 +122,46 @@ export class MapEditor {
       color: '#0b6bcb', weight: 2.5, fillColor: '#0b6bcb', fillOpacity: 0.18, dashArray: '4 3',
     }).addTo(this.layer);
 
-    // Corner handles resize; the centre handle moves the whole shape.
-    s.pts.forEach((p, i) => this.addHandle(p, 'corner', i));
+    /*
+     * Handles depend on the shape kind, which was the bug: dragging a corner
+     * of a rectangle must keep it a rectangle, while dragging a vertex of a
+     * free shape must move only that vertex.
+     */
+    s.pts.forEach((p, i) => this.addHandle(p, s.isRect ? 'corner' : 'vertex', i));
     this.addHandle(centroid(s.pts), 'move', -1);
+
+    if (s.isRect) {
+      // Rotation handle, offset beyond the shape so it never sits under a corner.
+      const c = centroid(s.pts);
+      const reach = Math.max(s.rect.width, s.rect.height) / 2 + 4;
+      const a = (s.rect.rotation * Math.PI) / 180;
+      this.addHandle({ x: c.x + Math.sin(a) * reach, y: c.y + Math.cos(a) * reach }, 'rotate', -1);
+    } else {
+      // Midpoints add a vertex; useful for refining an odd corner.
+      s.pts.forEach((p, i) => {
+        const q = s.pts[(i + 1) % s.pts.length]!;
+        this.addMidHandle({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, i);
+      });
+    }
 
     this.renderPanel();
   }
 
-  private addHandle(p: Point, kind: 'corner' | 'move', index: number): void {
+  private addHandle(p: Point, kind: 'corner' | 'vertex' | 'move' | 'rotate', index: number): void {
     const frame = this.ensureFrame();
     const ll = frame.toLatLon(p);
     const isMove = kind === 'move';
+    const isRotate = kind === 'rotate';
+    const big = isMove || isRotate;
+    const cls = isMove ? 'is-move' : isRotate ? 'is-rotate' : kind === 'vertex' ? 'is-vertex' : '';
 
     const marker = L.marker([ll.lat, ll.lon], {
       draggable: true,
       icon: L.divIcon({
         className: 'edit-handle-wrap',
-        html: `<span class="edit-handle ${isMove ? 'is-move' : ''}"></span>`,
-        iconSize: [isMove ? 26 : 18, isMove ? 26 : 18],
-        iconAnchor: [isMove ? 13 : 9, isMove ? 13 : 9],
+        html: `<span class="edit-handle ${cls}"></span>`,
+        iconSize: [big ? 26 : 18, big ? 26 : 18],
+        iconAnchor: [big ? 13 : 9, big ? 13 : 9],
       }),
     }).addTo(this.handles);
 
@@ -158,8 +180,12 @@ export class MapEditor {
 
       if (isMove) {
         this.applyMove(startPts, cur.x - startPtr.x, cur.y - startPtr.y);
+      } else if (isRotate) {
+        this.applyRotate(cur);
+      } else if (kind === 'corner') {
+        this.applyRectCorner(index, cur);
       } else {
-        this.applyCornerResize(startPts, index, cur);
+        this.applyVertexMove(index, cur);
       }
     });
 
@@ -181,34 +207,62 @@ export class MapEditor {
   }
 
   /** Drag a corner: the opposite corner stays put, which is what people expect. */
-  private applyCornerResize(startPts: Point[], index: number, cur: Point): void {
+  /** Rectangle: keep it rectangular, pin the opposite corner. */
+  private applyRectCorner(index: number, cur: Point): void {
     if (!this.sel) return;
-    const b = bounds(startPts);
-    const anchor: Point = {
-      x: startPts[index]!.x > (b.minX + b.maxX) / 2 ? b.minX : b.maxX,
-      y: startPts[index]!.y > (b.minY + b.maxY) / 2 ? b.minY : b.maxY,
-    };
-    const origin = startPts[index]!;
-    const denomX = origin.x - anchor.x;
-    const denomY = origin.y - anchor.y;
-    if (Math.abs(denomX) < 0.01 || Math.abs(denomY) < 0.01) return;
-
-    let sx = (cur.x - anchor.x) / denomX;
-    let sy = (cur.y - anchor.y) / denomY;
-
-    if (this.snapOn && this.gridM > 0) {
-      const w = snapToGrid(Math.abs(denomX * sx), this.gridM);
-      const h = snapToGrid(Math.abs(denomY * sy), this.gridM);
-      sx = Math.sign(sx) * (w / Math.abs(denomX));
-      sy = Math.sign(sy) * (h / Math.abs(denomY));
-    }
-    // Never let a shape collapse or turn inside out.
-    if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0.02 || sy <= 0.02) return;
-
-    const next = scaleAbout(startPts, anchor, sx, sy);
-    this.sel.pts = next;
-    this.sel.rect = fitRect(next);
+    const grid = this.snapOn ? this.gridM : 0;
+    const rect = resizeRectByCorner(this.sel.rect, index, cur, grid);
+    this.sel.rect = rect;
+    this.sel.pts = rectToPoints(rect);
     this.previewOnly();
+  }
+
+  /** Free polygon: move exactly one vertex, leave the rest alone. */
+  private applyVertexMove(index: number, cur: Point): void {
+    if (!this.sel) return;
+    let target = cur;
+    if (this.snapOn) {
+      // Snap a single vertex to neighbouring guide lines.
+      const g = this.guideLines();
+      const nx = nearest(target.x, g.xs, 0.35);
+      const ny = nearest(target.y, g.ys, 0.35);
+      target = { x: nx ?? target.x, y: ny ?? target.y };
+      this.showGuides(nx, ny);
+    }
+    this.sel.pts = moveVertex(this.sel.pts, index, target, 0);
+    this.sel.rect = fitRect(this.sel.pts);
+    this.previewOnly();
+  }
+
+  private applyRotate(cur: Point): void {
+    if (!this.sel) return;
+    const c = centroid(this.sel.pts);
+    // 15° steps while snapping is on, so beds line up with the field.
+    const rotation = rotationTowards(c, cur, this.snapOn ? 15 : 0);
+    const rect = { ...this.sel.rect, cx: c.x, cy: c.y, rotation };
+    this.sel.rect = rect;
+    this.sel.pts = rectToPoints(rect);
+    this.previewOnly();
+  }
+
+  /** Midpoint handle on a free shape: tap to insert a vertex there. */
+  private addMidHandle(p: Point, edgeIndex: number): void {
+    const frame = this.ensureFrame();
+    const ll = frame.toLatLon(p);
+    L.marker([ll.lat, ll.lon], {
+      icon: L.divIcon({
+        className: 'edit-handle-wrap',
+        html: '<span class="edit-handle is-mid"></span>',
+        iconSize: [14, 14], iconAnchor: [7, 7],
+      }),
+    }).addTo(this.handles).on('click', (e) => {
+      L.DomEvent.stop(e);
+      if (!this.sel) return;
+      this.sel.pts = splitEdge(this.sel.pts, edgeIndex);
+      this.sel.isRect = false;
+      this.redraw();
+      void this.save();
+    });
   }
 
   /** Redraw the outline during a drag without rebuilding handles under the finger. */
@@ -344,6 +398,15 @@ export class MapEditor {
             icon('floppy', 14), t('common.save')),
           el('button', { class: 'btn', onclick: () => this.makeRectangle() },
             icon('polygon', 14), t('editor.makeRect')),
+          !s.isRect && s.pts.length > 3 && el('button', {
+            class: 'btn', title: t('editor.removeVertex'),
+            onclick: () => {
+              if (!this.sel) return;
+              this.sel.pts = removeVertex(this.sel.pts, this.sel.pts.length - 1);
+              this.sel.rect = fitRect(this.sel.pts);
+              this.redraw(); void this.save();
+            },
+          }, icon('trash', 14)),
         ),
       ),
     );
@@ -452,4 +515,15 @@ export class MapEditor {
 
   get selected(): EditableShape | null { return this.sel?.shape ?? null; }
   setGrid(m: number): void { this.gridM = m; this.renderPanel(); }
+}
+
+/** Nearest guide within tolerance, or null. */
+function nearest(value: number, guides: number[], tolerance: number): number | null {
+  let best: number | null = null;
+  let bestD = tolerance;
+  for (const g of guides) {
+    const d = Math.abs(g - value);
+    if (d < bestD) { bestD = d; best = g; }
+  }
+  return best;
 }

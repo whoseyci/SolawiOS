@@ -260,3 +260,94 @@ export function snapBounds(
 export function snapToGrid(value: number, grid: number): number {
   return grid > 0 ? Math.round(value / grid) * grid : value;
 }
+
+// ------------------------------------------------- shape-aware corner drags
+
+/**
+ * Resize a rectangle by one corner, keeping it a rectangle.
+ *
+ * The earlier implementation scaled in world x/y, which shears a rotated
+ * rectangle into a parallelogram. The corner has to move within the
+ * rectangle's OWN axes, with the opposite corner pinned.
+ *
+ * `index` is the corner being dragged, in the vertex order produced by
+ * `rectToPoints`.
+ */
+export function resizeRectByCorner(
+  rect: Rect, index: number, target: Point, grid = 0,
+): Rect {
+  const a = rect.rotation * D2R;
+  const ux = { x: Math.cos(a), y: -Math.sin(a) };  // width axis
+  const uy = { x: Math.sin(a), y: Math.cos(a) };   // height axis
+
+  // The diagonally opposite corner stays where it is.
+  const corners = rectToPoints(rect);
+  const fixed = corners[(index + 2) % 4]!;
+
+  // Express the drag in the rectangle's own frame.
+  const dx = target.x - fixed.x;
+  const dy = target.y - fixed.y;
+  let w = dx * ux.x + dy * ux.y;
+  let h = dx * uy.x + dy * uy.y;
+
+  if (grid > 0) {
+    w = Math.sign(w) * Math.max(grid, snapToGrid(Math.abs(w), grid));
+    h = Math.sign(h) * Math.max(grid, snapToGrid(Math.abs(h), grid));
+  }
+  // Never collapse to nothing; a zero-width bed is not a useful state.
+  const minSize = grid > 0 ? grid : 0.1;
+  if (Math.abs(w) < minSize) w = Math.sign(w || 1) * minSize;
+  if (Math.abs(h) < minSize) h = Math.sign(h || 1) * minSize;
+
+  /*
+   * The centre lies halfway along the new diagonal from the pinned corner.
+   * `w` and `h` keep their sign here: dragging past the fixed corner flips the
+   * rectangle to the other side, which is what a direct-manipulation handle
+   * should do, and the pinned corner still does not move.
+   */
+  return {
+    cx: fixed.x + (ux.x * w + uy.x * h) / 2,
+    cy: fixed.y + (ux.y * w + uy.y * h) / 2,
+    width: Math.abs(w),
+    height: Math.abs(h),
+    rotation: rect.rotation,
+  };
+}
+
+/**
+ * Move ONE vertex of a free polygon, leaving every other vertex alone.
+ *
+ * This is the behaviour people expect from a free shape, and the opposite of
+ * what a rectangle should do.
+ */
+export function moveVertex(pts: Point[], index: number, target: Point, grid = 0): Point[] {
+  const next = [...pts];
+  next[index] = grid > 0
+    ? { x: snapToGrid(target.x, grid), y: snapToGrid(target.y, grid) }
+    : { x: target.x, y: target.y };
+  return next;
+}
+
+/** Insert a vertex at the midpoint of an edge, for refining a free shape. */
+export function splitEdge(pts: Point[], edgeIndex: number): Point[] {
+  const a = pts[edgeIndex]!;
+  const b = pts[(edgeIndex + 1) % pts.length]!;
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const next = [...pts];
+  next.splice(edgeIndex + 1, 0, mid);
+  return next;
+}
+
+/** Remove a vertex, refusing to go below a triangle. */
+export function removeVertex(pts: Point[], index: number): Point[] {
+  if (pts.length <= 3) return pts;
+  const next = [...pts];
+  next.splice(index, 1);
+  return next;
+}
+
+/** Rotate a rectangle by dragging a handle offset from its centre. */
+export function rotationTowards(centre: Point, target: Point, snapDeg = 0): number {
+  const deg = (Math.atan2(target.x - centre.x, target.y - centre.y) * R2D + 360) % 360;
+  return snapDeg > 0 ? Math.round(deg / snapDeg) * snapDeg : deg;
+}

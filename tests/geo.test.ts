@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   Frame, polygon, outerRing, fitRect, rectToPoints, bounds, centroid, area,
   translate, scaleAbout, rotateAbout, pointInRing, snapBounds, snapToGrid,
+  resizeRectByCorner, moveVertex, splitEdge, removeVertex, rotationTowards,
 } from '../packages/web/src/lib/geo.js';
 
 /**
@@ -171,5 +172,77 @@ describe('a realistic bed survives an edit cycle', () => {
     expect(b.width).toBeCloseTo(0.75, 3);
     expect(b.height).toBeCloseTo(30, 3);
     expect(centroid(final).x).toBeCloseTo(0.25, 3);
+  });
+});
+
+describe('corner drags respect the shape kind', () => {
+  /** Right angles at every vertex, within tolerance. */
+  function isRectangle(pts: ReturnType<typeof rectToPoints>, tol = 1e-6): boolean {
+    if (pts.length !== 4) return false;
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i]!, b = pts[(i + 1) % 4]!, c = pts[(i + 2) % 4]!;
+      const v1 = { x: a.x - b.x, y: a.y - b.y };
+      const v2 = { x: c.x - b.x, y: c.y - b.y };
+      const dot = v1.x * v2.x + v1.y * v2.y;
+      const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+      if (mag > 0 && Math.abs(dot / mag) > tol) return false;
+    }
+    return true;
+  }
+
+  it('keeps an AXIS-ALIGNED rectangle rectangular', () => {
+    const rect = { cx: 0, cy: 0, width: 10, height: 4, rotation: 0 };
+    const next = resizeRectByCorner(rect, 0, { x: -8, y: -3 });
+    expect(isRectangle(rectToPoints(next))).toBe(true);
+  });
+
+  it('keeps a ROTATED rectangle rectangular — the shear bug', () => {
+    // Dragging a corner used to scale in world x/y, which turns a rotated
+    // rectangle into a parallelogram.
+    const rect = { cx: 5, cy: 5, width: 30, height: 0.75, rotation: 37 };
+    for (const corner of [0, 1, 2, 3]) {
+      const next = resizeRectByCorner(rect, corner, { x: 12, y: -4 });
+      expect(isRectangle(rectToPoints(next)), `corner ${corner} sheared`).toBe(true);
+      // Rotation must survive the drag.
+      expect(next.rotation).toBeCloseTo(37, 6);
+    }
+  });
+
+  it('pins the opposite corner while dragging', () => {
+    const rect = { cx: 0, cy: 0, width: 10, height: 6, rotation: 20 };
+    const pinned = rectToPoints(rect)[2]!;
+    const next = resizeRectByCorner(rect, 0, { x: 3, y: 9 });
+    // A drag may reorder the vertices, so assert the pinned POINT survives
+    // somewhere in the result rather than at a fixed index.
+    const stillThere = rectToPoints(next).some(
+      (p) => Math.hypot(p.x - pinned.x, p.y - pinned.y) < 1e-6);
+    expect(stillThere).toBe(true);
+  });
+
+  it('refuses to collapse a rectangle to zero', () => {
+    const rect = { cx: 0, cy: 0, width: 10, height: 4, rotation: 0 };
+    const next = resizeRectByCorner(rect, 0, rectToPoints(rect)[2]!, 0.25);
+    expect(next.width).toBeGreaterThan(0);
+    expect(next.height).toBeGreaterThan(0);
+  });
+
+  it('moves only ONE vertex of a free polygon', () => {
+    const pts = [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: -3, y: 5 },
+    ];
+    const next = moveVertex(pts, 2, { x: 14, y: 13 });
+    expect(next[2]).toEqual({ x: 14, y: 13 });
+    // Every other vertex is untouched.
+    [0, 1, 3, 4].forEach((i) => expect(next[i]).toEqual(pts[i]));
+  });
+
+  it('adds and removes vertices, never below a triangle', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }];
+    const split = splitEdge(pts, 0);
+    expect(split).toHaveLength(4);
+    expect(split[1]).toEqual({ x: 5, y: 0 });
+
+    expect(removeVertex(split, 1)).toHaveLength(3);
+    expect(removeVertex(pts, 0)).toHaveLength(3); // already minimal
   });
 });

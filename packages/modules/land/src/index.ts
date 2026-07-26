@@ -1,5 +1,8 @@
 import type { SolawiModule, ModuleContext, Migration } from '@solawi/kernel';
-import { GEO_MIGRATIONS, type FeatureKind, type MapSettings } from './geo.js';
+import {
+  GEO_MIGRATIONS, VOCAB_MIGRATION, LAND_VOCABULARIES,
+  type FeatureKind, type MapSettings, type VocabularyKey, type LandVocabulary,
+} from './geo.js';
 
 /**
  * Module 3 — land (Flächen & Karte).
@@ -87,6 +90,7 @@ const MIGRATIONS: readonly Migration[] = [
     ],
   },
   ...GEO_MIGRATIONS,
+  VOCAB_MIGRATION,
 ];
 
 export interface Field {
@@ -362,4 +366,61 @@ export async function renameBed(ctx: ModuleContext, id: string, name: string): P
     [name, id, ctx.orgId]);
 }
 
-export { FEATURE_KINDS, type FeatureKind, type MapSettings } from './geo.js';
+export {
+  FEATURE_KINDS, LAND_VOCABULARIES,
+  type FeatureKind, type MapSettings, type VocabularyKey, type LandVocabulary,
+} from './geo.js';
+
+/** Resolve the labels this farm uses for its two land levels. */
+export async function getVocabulary(ctx: ModuleContext): Promise<LandVocabulary> {
+  const row = await ctx.store.first<{
+    vocabulary: string; single_level: number; custom_outer: string | null; custom_inner: string | null;
+  }>(`SELECT vocabulary, single_level, custom_outer, custom_inner
+        FROM land_map_settings WHERE org_id = ?`, [ctx.orgId]).catch(() => null);
+
+  const key = (row?.vocabulary ?? 'market_garden') as VocabularyKey;
+  const base = LAND_VOCABULARIES[key] ?? LAND_VOCABULARIES.market_garden;
+  return {
+    outer: row?.custom_outer || base.outer,
+    inner: row?.custom_inner || base.inner,
+    outerPl: row?.custom_outer ? germanPlural(row.custom_outer) : base.outerPl,
+    innerPl: row?.custom_inner ? germanPlural(row.custom_inner) : base.innerPl,
+    singleLevel: row?.single_level === 1,
+  };
+}
+
+/**
+ * Rough German plural for a farm's own word.
+ *
+ * Deliberately simple: German pluralisation is genuinely irregular and a farm
+ * that dislikes the guess can type the word it wants. Appending "n" blindly
+ * produced "Ackern" and "Streifenn", which just looks broken.
+ */
+function germanPlural(word: string): string {
+  const w = word.trim();
+  if (!w) return w;
+  if (/(chen|lein|er|en|el)$/i.test(w)) return w;        // Streifen, Acker → unchanged
+  if (/e$/i.test(w)) return `${w}n`;                      // Fläche → Flächen
+  if (/(in)$/i.test(w)) return `${w}nen`;
+  if (/(a|i|o|u)$/i.test(w)) return `${w}s`;
+  return `${w}e`;                                         // Schlag → Schläge (umlaut aside)
+}
+
+export async function setVocabulary(
+  ctx: ModuleContext,
+  input: { vocabulary?: VocabularyKey; singleLevel?: boolean; customOuter?: string; customInner?: string },
+): Promise<void> {
+  const now = ctx.platform.clock.now().toISOString();
+  await ctx.store.run(
+    `INSERT INTO land_map_settings (org_id, vocabulary, single_level, custom_outer, custom_inner, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (org_id) DO UPDATE SET
+       vocabulary = COALESCE(excluded.vocabulary, land_map_settings.vocabulary),
+       single_level = excluded.single_level,
+       custom_outer = excluded.custom_outer,
+       custom_inner = excluded.custom_inner,
+       updated_at = excluded.updated_at`,
+    [ctx.orgId, input.vocabulary ?? 'market_garden', input.singleLevel ? 1 : 0,
+     input.customOuter ?? null, input.customInner ?? null, now],
+  );
+}

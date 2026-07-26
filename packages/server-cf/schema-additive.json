@@ -15,6 +15,36 @@
     "sql": "ALTER TABLE land_feature ADD COLUMN icon TEXT;"
   },
   {
+    "table": "land_map_settings",
+    "column": "vocabulary",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN vocabulary TEXT NOT NULL DEFAULT 'market_garden';"
+  },
+  {
+    "table": "land_map_settings",
+    "column": "single_level",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN single_level INTEGER NOT NULL DEFAULT 0;"
+  },
+  {
+    "table": "land_map_settings",
+    "column": "custom_outer",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN custom_outer TEXT;"
+  },
+  {
+    "table": "land_map_settings",
+    "column": "custom_inner",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN custom_inner TEXT;"
+  },
+  {
+    "table": "land_map_settings",
+    "column": "snapshot_key",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN snapshot_key TEXT;"
+  },
+  {
+    "table": "land_map_settings",
+    "column": "snapshot_bounds",
+    "sql": "ALTER TABLE land_map_settings ADD COLUMN snapshot_bounds TEXT;"
+  },
+  {
     "table": "task",
     "column": "board_column",
     "sql": "ALTER TABLE task ADD COLUMN board_column TEXT NOT NULL DEFAULT 'backlog';"
