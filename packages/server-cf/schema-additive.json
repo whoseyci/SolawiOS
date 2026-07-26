@@ -1,0 +1,27 @@
+[
+  {
+    "table": "land_field",
+    "column": "colour",
+    "sql": "ALTER TABLE land_field ADD COLUMN colour TEXT;"
+  },
+  {
+    "table": "land_feature",
+    "column": "colour",
+    "sql": "ALTER TABLE land_feature ADD COLUMN colour TEXT;"
+  },
+  {
+    "table": "land_feature",
+    "column": "icon",
+    "sql": "ALTER TABLE land_feature ADD COLUMN icon TEXT;"
+  },
+  {
+    "table": "task",
+    "column": "board_column",
+    "sql": "ALTER TABLE task ADD COLUMN board_column TEXT NOT NULL DEFAULT 'backlog';"
+  },
+  {
+    "table": "task",
+    "column": "board_order",
+    "sql": "ALTER TABLE task ADD COLUMN board_order REAL NOT NULL DEFAULT 0;"
+  }
+]

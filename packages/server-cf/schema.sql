@@ -1,8 +1,10 @@
 -- GENERATED FILE — do not edit.
 -- Regenerate with: npm run schema
 --
--- Idempotent: safe to run against a fresh or an existing database.
--- Schema changes belong in a module migration, not here.
+-- Contains ONLY statements that are safe to run repeatedly.
+-- ALTER TABLE ADD COLUMN is not one of them, so those live in
+-- schema-additive.json and are applied individually by
+-- scripts/apply-schema.mjs, which tolerates "duplicate column name".
 
 -- ============================================================
 -- kernel
@@ -21,6 +23,7 @@ CREATE TABLE IF NOT EXISTS org (
         archived_at  TEXT
       );
 
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS person (
         id            TEXT PRIMARY KEY,
         email         TEXT NOT NULL,
@@ -32,8 +35,7 @@ CREATE TABLE IF NOT EXISTS person (
         disabled_at   TEXT
       );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_person_email ON person (lower(email));
-
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS membership (
         org_id     TEXT NOT NULL REFERENCES org(id) ON DELETE CASCADE,
         person_id  TEXT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
@@ -42,8 +44,7 @@ CREATE TABLE IF NOT EXISTS membership (
         PRIMARY KEY (org_id, person_id, role)
       );
 
-CREATE INDEX IF NOT EXISTS idx_membership_person ON membership (person_id);
-
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS session (
         id         TEXT PRIMARY KEY,
         person_id  TEXT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
@@ -52,8 +53,7 @@ CREATE TABLE IF NOT EXISTS session (
         user_agent TEXT
       );
 
-CREATE INDEX IF NOT EXISTS idx_session_person ON session (person_id);
-
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS module_state (
         org_id     TEXT NOT NULL REFERENCES org(id) ON DELETE CASCADE,
         module_id  TEXT NOT NULL,
@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS module_state (
         PRIMARY KEY (org_id, module_id)
       );
 
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS schema_version (
         module_id  TEXT NOT NULL,
         version    INTEGER NOT NULL,
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
         PRIMARY KEY (module_id, version)
       );
 
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS event_log (
         id      TEXT PRIMARY KEY,
         org_id  TEXT NOT NULL,
@@ -79,10 +81,7 @@ CREATE TABLE IF NOT EXISTS event_log (
         at      TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_event_org_at ON event_log (org_id, at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_event_type ON event_log (org_id, type, at DESC);
-
+-- v1: kernel: orgs, people, memberships, module state, events, audit
 CREATE TABLE IF NOT EXISTS audit_log (
         id         TEXT PRIMARY KEY,
         org_id     TEXT NOT NULL,
@@ -92,10 +91,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
         detail     TEXT,
         at         TEXT NOT NULL
       );
-
-CREATE INDEX IF NOT EXISTS idx_audit_org_at ON audit_log (org_id, at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_audit_subject ON audit_log (org_id, subject, at DESC);
 
 -- ============================================================
 -- founding (module 1)
@@ -113,13 +108,45 @@ CREATE TABLE IF NOT EXISTS founding_milestone (
         PRIMARY KEY (org_id, milestone_id)
       );
 
-CREATE INDEX IF NOT EXISTS idx_founding_status ON founding_milestone (org_id, status);
-
+-- v1: founding: milestone progress and pitfall acknowledgements
 CREATE TABLE IF NOT EXISTS founding_pitfall_seen (
         org_id     TEXT NOT NULL,
         pitfall_id TEXT NOT NULL,
         seen_at    TEXT NOT NULL,
         PRIMARY KEY (org_id, pitfall_id)
+      );
+
+-- ============================================================
+-- finance (module 2)
+-- ============================================================
+
+-- v1: finance: budget lines and income sources
+CREATE TABLE IF NOT EXISTS fin_budget (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        season     TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+-- v1: finance: budget lines and income sources
+CREATE TABLE IF NOT EXISTS fin_cost (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        budget_id  TEXT NOT NULL REFERENCES fin_budget(id) ON DELETE CASCADE,
+        category   TEXT NOT NULL,
+        label      TEXT NOT NULL,
+        cents      INTEGER NOT NULL,
+        note       TEXT
+      );
+
+-- v1: finance: budget lines and income sources
+CREATE TABLE IF NOT EXISTS fin_income (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        budget_id  TEXT NOT NULL REFERENCES fin_budget(id) ON DELETE CASCADE,
+        source     TEXT NOT NULL,
+        label      TEXT NOT NULL,
+        cents      INTEGER NOT NULL
       );
 
 -- ============================================================
@@ -138,8 +165,7 @@ CREATE TABLE IF NOT EXISTS land_field (
         retired_at TEXT
       );
 
-CREATE INDEX IF NOT EXISTS idx_field_org ON land_field (org_id);
-
+-- v1: land: fields, beds, features, perennials, soil samples
 CREATE TABLE IF NOT EXISTS land_bed (
         id          TEXT PRIMARY KEY,
         org_id      TEXT NOT NULL,
@@ -155,8 +181,7 @@ CREATE TABLE IF NOT EXISTS land_bed (
         retired_at  TEXT
       );
 
-CREATE INDEX IF NOT EXISTS idx_bed_org_field ON land_bed (org_id, field_id);
-
+-- v1: land: fields, beds, features, perennials, soil samples
 CREATE TABLE IF NOT EXISTS land_feature (
         id         TEXT PRIMARY KEY,
         org_id     TEXT NOT NULL,
@@ -168,8 +193,7 @@ CREATE TABLE IF NOT EXISTS land_feature (
         created_at TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_feature_org ON land_feature (org_id, kind);
-
+-- v1: land: fields, beds, features, perennials, soil samples
 CREATE TABLE IF NOT EXISTS land_perennial (
         id           TEXT PRIMARY KEY,
         org_id       TEXT NOT NULL,
@@ -185,8 +209,7 @@ CREATE TABLE IF NOT EXISTS land_perennial (
         created_at   TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_perennial_org ON land_perennial (org_id);
-
+-- v1: land: fields, beds, features, perennials, soil samples
 CREATE TABLE IF NOT EXISTS land_soil_sample (
         id         TEXT PRIMARY KEY,
         org_id     TEXT NOT NULL,
@@ -198,7 +221,15 @@ CREATE TABLE IF NOT EXISTS land_soil_sample (
         note       TEXT
       );
 
-CREATE INDEX IF NOT EXISTS idx_soil_field ON land_soil_sample (org_id, field_id, taken_on DESC);
+-- v2: land: farm map centre, zoom and base layer
+CREATE TABLE IF NOT EXISTS land_map_settings (
+        org_id     TEXT PRIMARY KEY,
+        centre_lat REAL,
+        centre_lon REAL,
+        zoom       INTEGER NOT NULL DEFAULT 17,
+        base_layer TEXT NOT NULL DEFAULT 'osm',
+        updated_at TEXT NOT NULL
+      );
 
 -- ============================================================
 -- cultivation (module 4)
@@ -218,10 +249,7 @@ CREATE TABLE IF NOT EXISTS cult_crop (
         created_at     TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_crop_org ON cult_crop (org_id);
-
-CREATE INDEX IF NOT EXISTS idx_crop_family ON cult_crop (org_id, family);
-
+-- v1: cultivation: crops, varieties, plantings
 CREATE TABLE IF NOT EXISTS cult_planting (
         id            TEXT PRIMARY KEY,
         org_id        TEXT NOT NULL,
@@ -239,10 +267,6 @@ CREATE TABLE IF NOT EXISTS cult_planting (
         note          TEXT,
         created_at    TEXT NOT NULL
       );
-
-CREATE INDEX IF NOT EXISTS idx_planting_org_bed ON cult_planting (org_id, bed_id);
-
-CREATE INDEX IF NOT EXISTS idx_planting_dates ON cult_planting (org_id, harvest_from, harvest_to);
 
 -- ============================================================
 -- tasks (module 5)
@@ -269,9 +293,54 @@ CREATE TABLE IF NOT EXISTS task (
         created_at     TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_task_org_status ON task (org_id, status, window_to);
+-- ============================================================
+-- distribution (module 7)
+-- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_task_bed ON task (org_id, bed_id);
+-- v1: distribution: depots, distribution days, pickups
+CREATE TABLE IF NOT EXISTS depot (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        address    TEXT,
+        opening    TEXT,
+        contact    TEXT,
+        capacity   INTEGER,
+        active     INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+
+-- v1: distribution: depots, distribution days, pickups
+CREATE TABLE IF NOT EXISTS distribution_day (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        date       TEXT NOT NULL,
+        note       TEXT,
+        status     TEXT NOT NULL DEFAULT 'planned',
+        created_at TEXT NOT NULL
+      );
+
+-- v1: distribution: depots, distribution days, pickups
+CREATE TABLE IF NOT EXISTS distribution_item (
+        id        TEXT PRIMARY KEY,
+        org_id    TEXT NOT NULL,
+        day_id    TEXT NOT NULL REFERENCES distribution_day(id) ON DELETE CASCADE,
+        label     TEXT NOT NULL,
+        qty_full  REAL,
+        qty_half  REAL,
+        unit      TEXT NOT NULL DEFAULT 'kg'
+      );
+
+-- v1: distribution: depots, distribution days, pickups
+CREATE TABLE IF NOT EXISTS pickup (
+        id           TEXT PRIMARY KEY,
+        org_id       TEXT NOT NULL,
+        day_id       TEXT NOT NULL REFERENCES distribution_day(id) ON DELETE CASCADE,
+        household_id TEXT NOT NULL,
+        depot_id     TEXT,
+        status       TEXT NOT NULL DEFAULT 'expected',
+        picked_at    TEXT
+      );
 
 -- ============================================================
 -- members (module 8)
@@ -293,8 +362,7 @@ CREATE TABLE IF NOT EXISTS household (
         created_at    TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_household_org ON household (org_id);
-
+-- v1: members: households, share types, shares, absences, connect requests
 CREATE TABLE IF NOT EXISTS share_type (
         id         TEXT PRIMARY KEY,
         org_id     TEXT NOT NULL,
@@ -303,8 +371,7 @@ CREATE TABLE IF NOT EXISTS share_type (
         sort_order INTEGER NOT NULL DEFAULT 0
       );
 
-CREATE INDEX IF NOT EXISTS idx_sharetype_org ON share_type (org_id);
-
+-- v1: members: households, share types, shares, absences, connect requests
 CREATE TABLE IF NOT EXISTS share (
         id            TEXT PRIMARY KEY,
         org_id        TEXT NOT NULL,
@@ -316,8 +383,7 @@ CREATE TABLE IF NOT EXISTS share (
         created_at    TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_share_org_season ON share (org_id, season);
-
+-- v1: members: households, share types, shares, absences, connect requests
 CREATE TABLE IF NOT EXISTS absence (
         id           TEXT PRIMARY KEY,
         org_id       TEXT NOT NULL,
@@ -329,8 +395,7 @@ CREATE TABLE IF NOT EXISTS absence (
         created_at   TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_absence_dates ON absence (org_id, from_date, to_date);
-
+-- v1: members: households, share types, shares, absences, connect requests
 CREATE TABLE IF NOT EXISTS connect_request (
         id            TEXT PRIMARY KEY,
         org_id        TEXT NOT NULL,
@@ -343,8 +408,6 @@ CREATE TABLE IF NOT EXISTS connect_request (
         responded_at  TEXT,
         expires_at    TEXT
       );
-
-CREATE INDEX IF NOT EXISTS idx_connect_to ON connect_request (org_id, to_household, status);
 
 -- ============================================================
 -- bidding (module 9)
@@ -367,8 +430,7 @@ CREATE TABLE IF NOT EXISTS bid_round (
         created_at     TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_round_org ON bid_round (org_id, season, ordinal);
-
+-- v1: bidding: rounds, bids (append-only), anonymous comments
 CREATE TABLE IF NOT EXISTS bid (
         id            TEXT PRIMARY KEY,
         org_id        TEXT NOT NULL,
@@ -380,14 +442,45 @@ CREATE TABLE IF NOT EXISTS bid (
         created_at    TEXT NOT NULL
       );
 
-CREATE INDEX IF NOT EXISTS idx_bid_round ON bid (org_id, round_id, household_id, created_at DESC);
-
+-- v1: bidding: rounds, bids (append-only), anonymous comments
 CREATE TABLE IF NOT EXISTS bid_comment (
         id         TEXT PRIMARY KEY,
         org_id     TEXT NOT NULL,
         round_id   TEXT NOT NULL REFERENCES bid_round(id) ON DELETE CASCADE,
         body       TEXT NOT NULL,
         created_at TEXT NOT NULL
+      );
+
+-- ============================================================
+-- inventory (module 11)
+-- ============================================================
+
+-- v1: inventory: items, loans, maintenance
+CREATE TABLE IF NOT EXISTS inv_item (
+        id           TEXT PRIMARY KEY,
+        org_id       TEXT NOT NULL,
+        name         TEXT NOT NULL,
+        kind         TEXT NOT NULL DEFAULT 'tool',
+        home_location TEXT,
+        quantity     INTEGER NOT NULL DEFAULT 1,
+        condition    TEXT NOT NULL DEFAULT 'ok',
+        maintenance_days INTEGER,
+        last_service TEXT,
+        note         TEXT,
+        created_at   TEXT NOT NULL,
+        retired_at   TEXT
+      );
+
+-- v1: inventory: items, loans, maintenance
+CREATE TABLE IF NOT EXISTS inv_loan (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL,
+        item_id    TEXT NOT NULL REFERENCES inv_item(id) ON DELETE CASCADE,
+        holder     TEXT NOT NULL,
+        taken_at   TEXT NOT NULL,
+        due_at     TEXT,
+        returned_at TEXT,
+        note       TEXT
       );
 
 -- ============================================================
@@ -409,10 +502,6 @@ CREATE TABLE IF NOT EXISTS observation (
         device_id   TEXT,
         created_at  TEXT NOT NULL
       );
-
-CREATE INDEX IF NOT EXISTS idx_obs_bed_time ON observation (org_id, bed_id, observed_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_obs_activity ON observation (org_id, activity, observed_at DESC);
 
 -- ============================================================
 -- feedback (module 23)
@@ -437,20 +526,22 @@ CREATE TABLE IF NOT EXISTS feedback_report (
         delivered_at  TEXT
       );
 
-CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback_report (status, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_feedback_org ON feedback_report (org_id, created_at DESC);
-
 -- ============================================================
 -- migration bookkeeping
 -- ============================================================
 
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('kernel', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('founding', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('cultivation', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('members', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('bidding', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('observations', 1, '2026-07-25T12:17:02.933Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('feedback', 1, '2026-07-25T12:17:02.933Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('kernel', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('founding', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('finance', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 2, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 3, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('cultivation', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 2, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('distribution', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('members', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('bidding', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('inventory', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('observations', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('feedback', 1, '2026-07-26T12:09:56.873Z');
