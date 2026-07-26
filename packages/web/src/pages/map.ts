@@ -5,6 +5,7 @@ import { t, fmt } from '../lib/i18n.js';
 import { get, post, del } from '../lib/api.js';
 import { can } from '../lib/session.js';
 import { openBedDetail } from './bed-detail.js';
+import { MapEditor, type EditableShape } from './map-editor.js';
 
 /**
  * THE MAP — the main working view (docs/61 F2).
@@ -28,24 +29,32 @@ interface MapData {
 }
 
 type BaseLayer = 'osm' | 'satellite' | 'terrain';
-type DrawMode = null | { target: 'field' | 'bed' | 'feature'; kind?: string };
+type DrawMode = null | { target: 'field' | 'bed' | 'feature'; kind?: string; shape?: 'poly' | 'rect' };
 
-const LAYERS: Record<BaseLayer, { url: string; attribution: string; maxZoom: number }> = {
+/**
+ * `maxNativeZoom` is the deepest zoom the tile server actually has; `maxZoom`
+ * is how far Leaflet will let you go, upscaling the last real tile beyond it.
+ * Without this the map stopped at z19, which is far too coarse to place a
+ * 0.75 m bed — you need to see individual plants.
+ */
+const MAX_ZOOM = 24;
+
+const LAYERS: Record<BaseLayer, { url: string; attribution: string; maxNativeZoom: number }> = {
   osm: {
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap',
-    maxZoom: 19,
+    maxNativeZoom: 19,
   },
   // Esri World Imagery: usable without an API key, unlike Mapbox or Google.
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri, Maxar, Earthstar Geographics',
-    maxZoom: 19,
+    maxNativeZoom: 19,
   },
   terrain: {
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenTopoMap, OpenStreetMap',
-    maxZoom: 17,
+    maxNativeZoom: 17,
   },
 };
 
@@ -71,9 +80,10 @@ const FEATURE_STYLE: Record<string, { colour: string; icon: string }> = {
 
 export function renderMap(root: HTMLElement): void {
   const mapEl = el('div', { class: 'mapview', id: 'solawi-map' });
+  const editorPanel = el('div', { class: 'editor-dock' });
   const overlay = el('div', { class: 'map-overlay' });
   const legend = el('div', { class: 'map-legend' });
-  mount(root, el('div', { class: 'map-wrap' }, mapEl, overlay, legend));
+  mount(root, el('div', { class: 'map-wrap' }, mapEl, overlay, legend, editorPanel));
 
   let map: L.Map | null = null;
   let baseTile: L.TileLayer | null = null;
@@ -83,6 +93,12 @@ export function renderMap(root: HTMLElement): void {
   let drawLine: L.Polyline | null = null;
   let data: MapData | null = null;
   let dateOffset = 0;
+  let editor: MapEditor | null = null;
+  let editing = false;
+  /** Rectangle drawing: two opposite corners instead of tracing an outline. */
+  let rectStart: L.LatLng | null = null;
+  let rectPreview: L.Rectangle | null = null;
+
 
   void boot();
 
@@ -102,14 +118,27 @@ export function renderMap(root: HTMLElement): void {
       ? [s.centreLat, s.centreLon] : [50.9, 9.5];
     const zoom = s.centreLat ? s.zoom : 6;
 
-    map = L.map(mapEl, { zoomControl: false, attributionControl: true }).setView(centre, zoom);
+    map = L.map(mapEl, {
+      zoomControl: false, attributionControl: true,
+      maxZoom: MAX_ZOOM,
+      zoomSnap: 0.5,      // finer steps when placing small shapes
+      wheelPxPerZoomLevel: 90,
+    }).setView(centre, zoom);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     setBase(s.baseLayer ?? 'osm');
     shapes = L.layerGroup().addTo(map);
 
     map.on('click', onMapClick);
     map.on('dblclick', finishShape);
+    map.on('mousemove', onMouseMove);
     map.doubleClickZoom.disable();
+
+    editor = new MapEditor({
+      map,
+      shapes: editableShapes,
+      onSaved: async () => { await refresh(); },
+      panel: editorPanel,
+    });
 
     draw();
     renderControls();
@@ -122,11 +151,25 @@ export function renderMap(root: HTMLElement): void {
     }
   }
 
+  /** Fields, beds and features together — the editor treats them alike. */
+  function editableShapes(): EditableShape[] {
+    if (!data) return [];
+    return [
+      ...data.fields.map((f) => ({ id: f.id, table: 'field' as const, name: f.name, geometry: f.geometry })),
+      ...data.beds.map((b) => ({ id: b.id, table: 'bed' as const, name: b.name, geometry: b.geometry })),
+      ...data.features.map((f) => ({ id: f.id, table: 'feature' as const, name: f.name, geometry: f.geometry })),
+    ];
+  }
+
   function setBase(kind: BaseLayer): void {
     if (!map) return;
     if (baseTile) map.removeLayer(baseTile);
     const cfg = LAYERS[kind] ?? LAYERS.osm;
-    baseTile = L.tileLayer(cfg.url, { attribution: cfg.attribution, maxZoom: cfg.maxZoom }).addTo(map);
+    baseTile = L.tileLayer(cfg.url, {
+      attribution: cfg.attribution,
+      maxNativeZoom: cfg.maxNativeZoom,
+      maxZoom: MAX_ZOOM,
+    }).addTo(map);
     baseTile.bringToBack();
   }
 
@@ -146,9 +189,14 @@ export function renderMap(root: HTMLElement): void {
     for (const f of data.fields) {
       const geo = parse(f.geometry);
       if (!geo) continue;
-      L.geoJSON(geo as never, {
+      const fieldLayer = L.geoJSON(geo as never, {
         style: { color: '#1f6b3a', weight: 2, fillOpacity: 0.04, dashArray: '6 4' },
       }).bindTooltip(f.name, { sticky: true }).addTo(shapes);
+      fieldLayer.on('click', (e) => {
+        if (!editing || !editor) return;
+        L.DomEvent.stop(e);
+        editor.select({ id: f.id, table: 'field', name: f.name, geometry: f.geometry });
+      });
     }
 
     for (const bed of data.beds) {
@@ -174,6 +222,10 @@ export function renderMap(root: HTMLElement): void {
       layer.on('click', (e) => {
         L.DomEvent.stop(e);
         if (drawMode) return;
+        if (editing && editor) {
+          editor.select({ id: bed.id, table: 'bed', name: bed.name, geometry: bed.geometry });
+          return;
+        }
         openBedDetail(bed, planting ?? null, () => void refresh());
       });
 
@@ -206,11 +258,19 @@ export function renderMap(root: HTMLElement): void {
             html: `<span class="feature-pin" style="background:${style.colour}">${icon(style.icon, 14)}</span>`,
             iconSize: [28, 28], iconAnchor: [14, 14],
           }),
-        }).bindTooltip(f.name).addTo(shapes).on('click', () => featureSheet(f));
+        }).bindTooltip(f.name).addTo(shapes).on('click', () => {
+          if (editing && editor) {
+            editor.select({ id: f.id, table: 'feature', name: f.name, geometry: f.geometry });
+          } else featureSheet(f);
+        });
       } else {
         L.geoJSON(geo as never, {
           style: { color: style.colour, weight: 3, fillOpacity: 0.25, fillColor: style.colour },
-        }).bindTooltip(f.name).addTo(shapes).on('click', () => featureSheet(f));
+        }).bindTooltip(f.name).addTo(shapes).on('click', () => {
+          if (editing && editor) {
+            editor.select({ id: f.id, table: 'feature', name: f.name, geometry: f.geometry });
+          } else featureSheet(f);
+        });
       }
     }
 
@@ -282,18 +342,40 @@ export function renderMap(root: HTMLElement): void {
       can('grower') && el('div', { class: 'map-tools' },
         drawMode
           ? el('div', { class: 'draw-hint' },
-              el('span', {}, t('map.drawHint')),
-              el('button', { class: 'btn btn-sm', onclick: finishShape }, icon('check', 14), t('map.finish')),
+              el('span', {}, drawMode.shape === 'rect'
+                ? (rectStart ? t('map.rectSecondCorner') : t('map.rectFirstCorner'))
+                : t('map.drawHint')),
+              drawMode.shape !== 'rect' && el('button', { class: 'btn btn-sm', onclick: finishShape },
+                icon('check', 14), t('map.finish')),
               el('button', { class: 'btn btn-sm', onclick: cancelDraw }, icon('x', 14), t('common.cancel')),
             )
           : el('div', { class: 'tool-row' },
-              toolBtn('polygon', t('map.drawField'), () => startDraw({ target: 'field' })),
-              toolBtn('stack-plus', t('map.drawBed'), () => startDraw({ target: 'bed' })),
-              toolBtn('barn', t('map.drawFeature'), featureKindSheet),
-              toolBtn('crosshair', t('map.setCentre'), saveCentre),
+              // Editor mode is a deliberate switch: outside it, nothing moves.
+              el('button', {
+                class: `tool-btn ${editing ? 'on' : ''}`,
+                title: t('editor.mode'),
+                onclick: toggleEditor,
+              }, icon(editing ? 'check' : 'pencil', 18), el('span', {}, t('editor.mode'))),
+
+              editing && toolBtn('polygon', t('map.drawFieldRect'),
+                () => startDraw({ target: 'field', shape: 'rect' })),
+              editing && toolBtn('stack-plus', t('map.drawBedRect'),
+                () => startDraw({ target: 'bed', shape: 'rect' })),
+              editing && toolBtn('path', t('map.drawFree'),
+                () => startDraw({ target: 'bed', shape: 'poly' })),
+              editing && toolBtn('barn', t('map.drawFeature'), featureKindSheet),
+              editing && toolBtn('crosshair', t('map.setCentre'), saveCentre),
             ),
       ),
     );
+  }
+
+  function toggleEditor(): void {
+    editing = !editing;
+    if (!editing) { editor?.clear(); cancelDraw(); }
+    else toast(t('editor.entered'), 'warn');
+    renderControls();
+    draw();
   }
 
   const toolBtn = (ic: string, label: string, onclick: () => void) =>
@@ -312,30 +394,66 @@ export function renderMap(root: HTMLElement): void {
   function cancelDraw(): void {
     drawMode = null;
     drawPoints = [];
+    rectStart = null;
     if (drawLine) { drawLine.remove(); drawLine = null; }
+    rectPreview?.remove(); rectPreview = null;
     renderControls();
   }
 
   function onMapClick(e: L.LeafletMouseEvent): void {
-    if (!drawMode || !map) return;
-    drawPoints.push(e.latlng);
-    if (drawLine) drawLine.remove();
-    drawLine = L.polyline([...drawPoints, drawPoints[0]!], {
-      color: '#1f6b3a', weight: 3, dashArray: '5 5',
+    // Rectangle mode: first tap sets a corner, second completes it.
+    if (drawMode?.shape === 'rect') {
+      if (!rectStart) {
+        rectStart = e.latlng;
+        toast(t('map.rectSecondCorner'), 'warn');
+        return;
+      }
+      void finishRect(rectStart, e.latlng);
+      return;
+    }
+
+    if (drawMode) {
+      if (!map) return;
+      drawPoints.push(e.latlng);
+      if (drawLine) drawLine.remove();
+      drawLine = L.polyline([...drawPoints, drawPoints[0]!], {
+        color: '#1f6b3a', weight: 3, dashArray: '5 5',
+      }).addTo(map);
+      return;
+    }
+
+    // Editor mode: tapping bare map selects whatever is underneath, or clears.
+    if (editing && editor) {
+      const hit = editor.hitTest(e.latlng);
+      if (hit) editor.select(hit); else editor.clear();
+    }
+  }
+
+  /** Live preview while the second rectangle corner is being chosen. */
+  function onMouseMove(e: L.LeafletMouseEvent): void {
+    if (drawMode?.shape !== 'rect' || !rectStart || !map) return;
+    rectPreview?.remove();
+    rectPreview = L.rectangle(L.latLngBounds(rectStart, e.latlng), {
+      color: '#1f6b3a', weight: 2, dashArray: '4 4', fillOpacity: 0.1,
     }).addTo(map);
   }
 
-  async function finishShape(): Promise<void> {
-    if (!drawMode || drawPoints.length < 3) {
-      if (drawMode) toast(t('map.needThreePoints'), 'warn');
-      return;
-    }
-    const ring = drawPoints.map((p) => [p.lng, p.lat] as [number, number]);
-    ring.push(ring[0]!);
-    const geometry = { type: 'Polygon', coordinates: [ring] };
+  async function finishRect(a: L.LatLng, b: L.LatLng): Promise<void> {
+    rectPreview?.remove(); rectPreview = null;
+    rectStart = null;
     const mode = drawMode;
     cancelDraw();
+    if (!mode) return;
 
+    // Axis-aligned from two opposite corners; rotate later in the editor.
+    const ring: Array<[number, number]> = [
+      [a.lng, a.lat], [b.lng, a.lat], [b.lng, b.lat], [a.lng, b.lat], [a.lng, a.lat],
+    ];
+    const geometry = { type: 'Polygon', coordinates: [ring] };
+    await createShape(mode, geometry);
+  }
+
+  async function createShape(mode: NonNullable<DrawMode>, geometry: unknown): Promise<void> {
     if (mode.target === 'field') {
       const name = prompt(t('map.fieldName'));
       if (!name) return;
@@ -352,6 +470,18 @@ export function renderMap(root: HTMLElement): void {
     }
     toast(t('obs.saved'));
     await refresh();
+  }
+
+  async function finishShape(): Promise<void> {
+    if (!drawMode || drawPoints.length < 3) {
+      if (drawMode) toast(t('map.needThreePoints'), 'warn');
+      return;
+    }
+    const ring = drawPoints.map((p) => [p.lng, p.lat] as [number, number]);
+    ring.push(ring[0]!);
+    const mode = drawMode;
+    cancelDraw();
+    await createShape(mode, { type: 'Polygon', coordinates: [ring] });
   }
 
   function featureKindSheet(): void {

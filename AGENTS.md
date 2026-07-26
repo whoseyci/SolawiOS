@@ -171,6 +171,19 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Editor mode.** Zoom now reaches z24 via `maxNativeZoom` + Leaflet
+  overzoom (was capped at 19, far too coarse to place a 0.75 m bed). New `lib/geo.ts` does
+  all editing in a **local metric frame** — equirectangular around the farm, so "move 25 cm
+  east" is a constant rather than a latitude-dependent number of degrees. Editor mode is a
+  deliberate toggle: outside it nothing can be dragged. Inside it, tapping any field, bed or
+  feature selects it and opens a docked panel (not a sheet — you must see the shape while
+  typing) offering drag handles, exact width/length/rotation, relative nudges, a 25 cm arrow
+  pad, align-to-neighbour, and snapping to neighbouring edges and centres. Beds can be drawn
+  as **two-corner rectangles**; free polygons remain for odd corners. `tests/geo.test.ts`
+  (17 tests) pins the round-trip, and caught two real bugs while being written: the
+  width/height axes were swapped in `rectToPoints`, and `snapBounds` produced NaN on an
+  empty guide list. `npm test` now builds first — stale `dist/` had repeatedly produced
+  fake failures. 79 tests.
 - `2026-07-26` — **Deploys had been silently failing since the map release.** The live site
   served a stale bundle for two releases while fixes sat on `main`. Cause: schema v2/v3 added
   `ALTER TABLE ADD COLUMN`, which SQLite cannot make idempotent. The deploy command is a `&&`

@@ -530,18 +530,18 @@ CREATE TABLE IF NOT EXISTS feedback_report (
 -- migration bookkeeping
 -- ============================================================
 
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('kernel', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('founding', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('finance', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 2, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 3, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('cultivation', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 2, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('distribution', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('members', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('bidding', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('inventory', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('observations', 1, '2026-07-26T12:09:56.873Z');
-INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('feedback', 1, '2026-07-26T12:09:56.873Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('kernel', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('founding', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('finance', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 2, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('land', 3, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('cultivation', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('tasks', 2, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('distribution', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('members', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('bidding', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('inventory', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('observations', 1, '2026-07-26T16:04:03.509Z');
+INSERT OR IGNORE INTO schema_version (module_id, version, applied_at) VALUES ('feedback', 1, '2026-07-26T16:04:03.509Z');

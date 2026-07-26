@@ -16,7 +16,7 @@
     "build": "tsc --build && npm run build --workspace @solawi/web",
     "clean": "tsc --build --clean",
     "typecheck": "tsc --build --force",
-    "test": "vitest run",
+    "test": "npm run build --silent && vitest run",
     "test:watch": "vitest",
     "dev": "npm run dev --workspace @solawi/server-node",
     "cf:dev": "npm run dev --workspace @solawi/server-cf",
@@ -27,7 +27,9 @@
     "deploy": "bash scripts/deploy-cf.sh",
     "schema": "npm run build --silent && node scripts/generate-schema.mjs",
     "dev:web": "npm run dev --workspace @solawi/web",
-    "check:assets": "node scripts/check-assets.mjs"
+    "check:assets": "node scripts/check-assets.mjs",
+    "test:only": "vitest run",
+    "rebuild": "find packages -name \"*.tsbuildinfo\" -delete && rm -rf packages/*/dist packages/modules/*/dist && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

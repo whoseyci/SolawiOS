@@ -390,3 +390,68 @@ html, body {
 
 .brand-mark { display: flex; justify-content: center; color: var(--green-700); }
 .brand-mark svg { display: block; }
+
+/* ------------------------------------------------------------- editor mode */
+
+/*
+ * A docked panel rather than a bottom sheet: you need to see the shape move
+ * while you type into the fields, so it must not cover the map.
+ */
+.editor-dock {
+  position: absolute; top: 3.6rem; right: .6rem; z-index: 460;
+  width: min(280px, calc(100vw - 1.2rem)); max-height: calc(100% - 8rem);
+  overflow-y: auto; pointer-events: auto;
+}
+.editor-dock:empty { display: none; }
+@media (max-width: 560px) {
+  .editor-dock {
+    top: auto; bottom: 6.6rem; left: .6rem; right: .6rem; width: auto;
+    max-height: 46dvh;
+  }
+}
+
+.editor-panel {
+  background: var(--card); border: 1px solid var(--blue-600);
+  border-radius: var(--r); padding: .7rem; box-shadow: var(--sh-3);
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.editor-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.editor-head strong { flex: 1; font-size: .92rem; }
+.editor-sub {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--ink-3); margin-top: .1rem;
+}
+.editor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; }
+.editor-grid .field-tight { margin: 0; }
+.field-tight label { font-size: .68rem; margin-bottom: .15rem; }
+.field-tight input { min-height: 38px; padding: .35rem .45rem; font-size: .85rem; }
+.editor-toggle { font-size: .78rem; padding: .2rem 0; cursor: pointer; }
+
+/* Arrow pad for sub-metre nudges — a finger cannot drag 25 cm reliably. */
+.nudge-pad {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
+  gap: .25rem; width: 132px; margin: .1rem auto;
+}
+.pad-btn {
+  min-height: 36px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--card); color: var(--ink-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.pad-btn:hover { border-color: var(--blue-600); color: var(--blue-600); }
+.pad-caret-up    { grid-column: 2; grid-row: 1; }
+.pad-caret-left  { grid-column: 1; grid-row: 2; }
+.pad-caret-down  { grid-column: 2; grid-row: 2; }
+.pad-caret-right { grid-column: 3; grid-row: 2; }
+
+/* Handles must be grabbable with a fingertip, so the hit area exceeds the dot. */
+.edit-handle-wrap { background: none; border: none; }
+.edit-handle {
+  display: block; width: 14px; height: 14px; margin: 2px;
+  background: #fff; border: 2.5px solid var(--blue-600); border-radius: 3px;
+  box-shadow: var(--sh-2); cursor: nwse-resize;
+}
+.edit-handle.is-move {
+  width: 20px; height: 20px; margin: 3px; border-radius: 50%;
+  background: var(--blue-600); border-color: #fff; cursor: move;
+}
+.tool-btn.on { background: var(--blue-600); border-color: var(--blue-600); color: #fff; }
