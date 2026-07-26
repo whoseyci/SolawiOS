@@ -171,6 +171,16 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Snapshot becomes the basemap; vertex deletion fixed.** The saved image is
+  now the background: once captured, `setBase()` installs an `ImageOverlay` and **removes the
+  tile layer entirely** — no tile requests at all. "Extend" brings live tiles back for one
+  session so coverage can be widened, and is never sticky. Capture resolution raised to
+  native z19/z20 (was capped at 4096 px, which downsampled a permanent asset): a 600 m farm
+  is 3126 px / 9.8 Mpx, inside the 16 Mpx limit of older iOS Safari; the ceiling is a 60 Mpx
+  total-area budget, stepping down only for farms over ~1.5 km. Quality 0.92.
+  **Vertex deletion was broken** — a button that always removed the *last* point regardless
+  of selection. Now you press-and-hold the vertex itself (right-click on desktop), with a
+  minimum of three points enforced. 88 tests.
 - `2026-07-26` — **Editor mode.** Zoom now reaches z24 via `maxNativeZoom` + Leaflet
   overzoom (was capped at 19, far too coarse to place a 0.75 m bed). New `lib/geo.ts` does
   all editing in a **local metric frame** — equirectangular around the farm, so "move 25 cm

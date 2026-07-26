@@ -504,3 +504,8 @@ html, body {
   width: 10px; height: 10px; margin: 2px; border-radius: 50%;
   background: var(--card); border: 2px dashed var(--blue-600); opacity: .8; cursor: copy;
 }
+
+/* The saved-map chip replaces the layer switcher, so it must read as a state,
+   not a toggle: filled, with the escape hatch beside it. */
+.snap-chip .seg-btn.on { background: var(--green-700); }
+.snap-chip .seg-btn:not(.on) { color: var(--ink-2); }

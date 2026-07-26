@@ -246,3 +246,50 @@ describe('corner drags respect the shape kind', () => {
     expect(removeVertex(pts, 0)).toHaveLength(3); // already minimal
   });
 });
+
+describe('snapshot resolution', () => {
+  // Re-implements chooseZoom's arithmetic; lib/snapshot.ts needs a DOM.
+  const lonToX = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z;
+  const latToY = (lat: number, z: number) => {
+    const r = (lat * Math.PI) / 180;
+    return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z;
+  };
+  function pick(b: { north: number; south: number; east: number; west: number },
+                maxPx = 8192, maxArea = 60_000_000): number {
+    for (let z = 20; z >= 12; z--) {
+      const w = (lonToX(b.east, z) - lonToX(b.west, z)) * 256;
+      const h = (latToY(b.south, z) - latToY(b.north, z)) * 256;
+      if (w <= maxPx && h <= maxPx && w * h <= maxArea) return z;
+    }
+    return 12;
+  }
+  /** Bounds roughly `m` metres square at latitude 50. */
+  const square = (m: number) => {
+    const dLat = m / 111_320 / 2;
+    const dLon = m / (111_320 * Math.cos((50 * Math.PI) / 180)) / 2;
+    return { north: 50 + dLat, south: 50 - dLat, east: 8 + dLon, west: 8 - dLon };
+  };
+
+  it('captures a typical farm at full native resolution', () => {
+    // z19 is Esri's native level (~0.19 m/px) — the snapshot is permanent, so
+    // it must not be downsampled for a farm that comfortably fits.
+    expect(pick(square(600))).toBeGreaterThanOrEqual(19);
+    expect(pick(square(400))).toBeGreaterThanOrEqual(19);
+  });
+
+  it('steps down only when a farm is genuinely huge', () => {
+    const big = pick(square(3000));
+    expect(big).toBeLessThan(19);
+    expect(big).toBeGreaterThanOrEqual(16);
+  });
+
+  it('never exceeds the mobile canvas budget', () => {
+    for (const m of [400, 600, 1000, 2000, 4000]) {
+      const z = pick(square(m));
+      const b = square(m);
+      const w = (lonToX(b.east, z) - lonToX(b.west, z)) * 256;
+      const h = (latToY(b.south, z) - latToY(b.north, z)) * 256;
+      expect(w * h, `${m} m farm exceeded canvas budget`).toBeLessThanOrEqual(60_000_000);
+    }
+  });
+});

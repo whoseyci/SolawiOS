@@ -190,6 +190,42 @@ export class MapEditor {
     });
 
     marker.on('dragend', () => { this.redraw(); void this.save(); });
+
+    /*
+     * Deleting a vertex: tap the vertex itself. The old design was a button
+     * that always removed the LAST point regardless of what you had selected,
+     * which is unusable — you cannot choose which corner goes.
+     *
+     * Desktop: right-click. Touch: press and hold. Both routed through the
+     * same handler, and both confirm implicitly by requiring deliberate input.
+     */
+    if (kind === 'vertex') {
+      const del = (): void => {
+        if (!this.sel || this.sel.pts.length <= 3) {
+          toast(t('editor.minThreePoints'), 'warn');
+          return;
+        }
+        this.sel.pts = removeVertex(this.sel.pts, index);
+        this.sel.rect = fitRect(this.sel.pts);
+        this.redraw();
+        void this.save();
+        toast(t('editor.pointRemoved'));
+      };
+
+      marker.on('contextmenu', (e) => { L.DomEvent.stop(e); del(); });
+
+      const node = marker.getElement();
+      if (node) {
+        let hold: number | undefined;
+        node.addEventListener('pointerdown', (e) => {
+          if ((e as PointerEvent).pointerType !== 'touch') return;
+          hold = window.setTimeout(del, 550);
+        });
+        for (const ev of ['pointerup', 'pointermove', 'pointercancel']) {
+          node.addEventListener(ev, () => window.clearTimeout(hold));
+        }
+      }
+    }
   }
 
   private applyMove(startPts: Point[], dx: number, dy: number): void {
@@ -398,15 +434,8 @@ export class MapEditor {
             icon('floppy', 14), t('common.save')),
           el('button', { class: 'btn', onclick: () => this.makeRectangle() },
             icon('polygon', 14), t('editor.makeRect')),
-          !s.isRect && s.pts.length > 3 && el('button', {
-            class: 'btn', title: t('editor.removeVertex'),
-            onclick: () => {
-              if (!this.sel) return;
-              this.sel.pts = removeVertex(this.sel.pts, this.sel.pts.length - 1);
-              this.sel.rect = fitRect(this.sel.pts);
-              this.redraw(); void this.save();
-            },
-          }, icon('trash', 14)),
+          !s.isRect && s.pts.length > 3
+            && el('span', { class: 'hint', style: 'flex:1' }, t('editor.removeHint')),
         ),
       ),
     );

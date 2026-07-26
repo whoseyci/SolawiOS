@@ -9,7 +9,7 @@ import { MapEditor, type EditableShape } from './map-editor.js';
 import { createSearcher, type Place } from '../lib/geosearch.js';
 import {
   captureSnapshot, chooseZoom, saveSnapshot, loadSnapshot, downloadSnapshot,
-  type SnapshotBounds,
+  deleteSnapshot, type SnapshotBounds,
 } from '../lib/snapshot.js';
 import { suggestFields } from '../lib/suggest-fields.js';
 
@@ -96,6 +96,12 @@ export function renderMap(root: HTMLElement): void {
   let data: MapData | null = null;
   let dateOffset = 0;
   let editor: MapEditor | null = null;
+  /** Saved basemap image. When present, tiles are never requested. */
+  let snapshotLayer: L.ImageOverlay | null = null;
+  let snapshotUrl: string | null = null;
+  let snapshotInfo: { bounds: SnapshotBounds; zoom: number; bytes: number; capturedAt: string } | null = null;
+  /** Temporarily show live tiles while extending coverage. */
+  let liveOverride = false;
   let editing = false;
   /** Rectangle drawing: two opposite corners instead of tracing an outline. */
   let rectStart: L.LatLng | null = null;
@@ -127,7 +133,8 @@ export function renderMap(root: HTMLElement): void {
       wheelPxPerZoomLevel: 90,
     }).setView(centre, zoom);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    setBase(s.baseLayer ?? 'osm');
+    const hasSnapshot = await installSnapshot();
+    if (!hasSnapshot) setBase(s.baseLayer ?? 'osm');
     shapes = L.layerGroup().addTo(map);
 
     map.on('moveend zoomend', renderEdgeMarkers);
@@ -164,8 +171,22 @@ export function renderMap(root: HTMLElement): void {
     ];
   }
 
+  /**
+   * Install the background.
+   *
+   * Once a farm has saved a snapshot, that image IS the basemap: no tile
+   * requests, no attribution calls, nothing fetched. The farm decides when to
+   * refresh it. `liveOverride` temporarily brings tiles back so coverage can be
+   * extended, and is never sticky.
+   */
   function setBase(kind: BaseLayer): void {
     if (!map) return;
+
+    if (snapshotLayer && !liveOverride) {
+      if (baseTile) { map.removeLayer(baseTile); baseTile = null; }
+      return;
+    }
+
     if (baseTile) map.removeLayer(baseTile);
     const cfg = LAYERS[kind] ?? LAYERS.osm;
     baseTile = L.tileLayer(cfg.url, {
@@ -174,6 +195,38 @@ export function renderMap(root: HTMLElement): void {
       maxZoom: MAX_ZOOM,
     }).addTo(map);
     baseTile.bringToBack();
+  }
+
+  /** Put the stored image on the map and drop the tile layer entirely. */
+  async function installSnapshot(): Promise<boolean> {
+    if (!map) return false;
+    const stored = await loadSnapshot(auth.org ?? 'default').catch(() => null);
+    if (!stored) return false;
+
+    snapshotUrl && URL.revokeObjectURL(snapshotUrl);
+    snapshotUrl = URL.createObjectURL(stored.blob);
+    snapshotInfo = {
+      bounds: stored.bounds, zoom: stored.zoom,
+      bytes: stored.bytes, capturedAt: stored.capturedAt,
+    };
+
+    snapshotLayer?.remove();
+    snapshotLayer = L.imageOverlay(snapshotUrl, [
+      [stored.bounds.south, stored.bounds.west],
+      [stored.bounds.north, stored.bounds.east],
+    ], { opacity: 1, interactive: false }).addTo(map);
+    snapshotLayer.bringToBack();
+
+    if (baseTile) { map.removeLayer(baseTile); baseTile = null; }
+    return true;
+  }
+
+  /** Bring live tiles back so the farm can capture a wider area. */
+  function extendCoverage(): void {
+    liveOverride = true;
+    setBase(data?.settings.baseLayer ?? 'osm');
+    renderControls();
+    toast(t('map.extendHint'), 'warn');
   }
 
   // -------------------------------------------------------------- rendering
@@ -362,7 +415,18 @@ export function renderMap(root: HTMLElement): void {
 
     mount(overlay,
       el('div', { class: 'map-bar' },
-        el('div', { class: 'seg' },
+        snapshotLayer && !liveOverride
+          ? el('div', { class: 'seg snap-chip' },
+              el('button', {
+                class: 'seg-btn on', title: t('map.usingSnapshot'), onclick: snapshotSheet,
+              },
+                icon('floppy', 16),
+                el('span', { class: 'seg-label' }, t('map.offlineMap'))),
+              el('button', {
+                class: 'seg-btn', title: t('map.extend'), onclick: extendCoverage,
+              }, icon('globe', 16), el('span', { class: 'seg-label' }, t('map.extend'))),
+            )
+          : el('div', { class: 'seg' },
           ...(['osm', 'satellite'] as BaseLayer[]).map((k) =>
             el('button', {
               class: `seg-btn ${data!.settings.baseLayer === k ? 'on' : ''}`,
@@ -505,9 +569,14 @@ export function renderMap(root: HTMLElement): void {
         baseLayer: data.settings.baseLayer,
       }).catch(() => {});
 
+      liveOverride = false;
+      await installSnapshot();
+      renderControls();
+
       mount(body,
         el('div', { class: 'banner banner-ok' },
           t('map.captured', { mb: (snap.bytes / 1048576).toFixed(2), zoom: snap.zoom })),
+        el('p', { class: 'hint' }, t('map.nowOffline')),
         el('button', {
           class: 'btn btn-block', onclick: () => downloadSnapshot(snap, data!.settings.baseLayer),
         }, icon('floppy', 16), t('map.download')),
@@ -519,6 +588,43 @@ export function renderMap(root: HTMLElement): void {
     } catch {
       mount(body, el('div', { class: 'banner banner-error' }, t('map.captureFailed')));
     }
+  }
+
+  /** What is stored, how big, and how to replace or drop it. */
+  function snapshotSheet(): void {
+    if (!snapshotInfo) return;
+    const info = snapshotInfo;
+    const b = info.bounds;
+    const widthM = (b.east - b.west) * 111_320
+      * Math.cos(((b.north + b.south) / 2 * Math.PI) / 180);
+    const heightM = (b.north - b.south) * 111_320;
+
+    const body = el('div', {},
+      el('p', {}, t('map.snapshotStored', {
+        mb: (info.bytes / 1048576).toFixed(2), zoom: info.zoom,
+      })),
+      el('p', { class: 'muted' }, t('map.snapshotArea', {
+        w: Math.round(widthM), h: Math.round(heightM), date: fmt.date(info.capturedAt),
+      })),
+      el('p', { class: 'hint' }, t('map.nowOffline')),
+      el('div', { class: 'stack', style: 'margin-top:.7rem' },
+        el('button', { class: 'btn btn-block', onclick: () => { close(); extendCoverage(); } },
+          icon('globe', 16), t('map.extend')),
+        el('button', {
+          class: 'btn btn-danger btn-block',
+          onclick: async () => {
+            await deleteSnapshot(auth.org ?? 'default');
+            snapshotLayer?.remove(); snapshotLayer = null;
+            if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
+            snapshotInfo = null; liveOverride = false;
+            setBase(data?.settings.baseLayer ?? 'osm');
+            renderControls();
+            close();
+          },
+        }, icon('trash', 16), t('map.dropSnapshot')),
+      ),
+    );
+    const close = sheet(t('map.offlineMap'), body);
   }
 
   /** #7: propose outlines from the imagery, accepted one at a time. */

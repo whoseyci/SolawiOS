@@ -44,14 +44,24 @@ function yToLat(y: number, z: number): number {
 }
 
 /**
- * Choose the deepest zoom whose stitched image stays within a pixel budget.
- * Beyond ~4000px the file grows faster than the detail is useful on a phone.
+ * Choose the deepest zoom whose stitched image fits the canvas budget.
+ *
+ * The snapshot becomes the permanent background, so it must be captured at the
+ * best resolution the imagery actually has — z19 is native for Esri, ~0.19 m
+ * per pixel. A 600 m farm is then 3126 px (9.8 Mpx), well inside every mobile
+ * canvas limit; older iOS Safari caps total canvas area at 16 Mpx, current
+ * versions at 268 Mpx.
+ *
+ * `maxPx` is a per-side ceiling, not a quality target: we only step down when a
+ * farm is genuinely huge.
  */
-export function chooseZoom(bounds: SnapshotBounds, maxPx = 4096, maxZoom = 19): number {
+export function chooseZoom(bounds: SnapshotBounds, maxPx = 8192, maxZoom = 20): number {
   for (let z = maxZoom; z >= 12; z--) {
     const w = (lonToX(bounds.east, z) - lonToX(bounds.west, z)) * TILE;
     const h = (latToY(bounds.south, z) - latToY(bounds.north, z)) * TILE;
-    if (w <= maxPx && h <= maxPx) return z;
+    // Total area matters as much as either side; 60 Mpx is a safe ceiling
+    // across mobile browsers while still allowing a ~1.5 km farm at z19.
+    if (w <= maxPx && h <= maxPx && w * h <= 60_000_000) return z;
   }
   return 12;
 }
@@ -134,7 +144,7 @@ export async function captureSnapshot(
   if (!octx) throw new Error('canvas_unavailable');
   octx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-  const blob = await toBlob(out, opts.quality ?? 0.8);
+  const blob = await toBlob(out, opts.quality ?? 0.92);
 
   return {
     blob,
