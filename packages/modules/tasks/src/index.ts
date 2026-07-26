@@ -42,7 +42,22 @@ const MIGRATIONS: readonly Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_task_bed ON task (org_id, bed_id)`,
     ],
   },
+  {
+    version: 2,
+    description: 'tasks: kanban column and manual ordering',
+    statements: [
+      // `status` already exists; `column` is the board lane, which is not the
+      // same thing: a task can be 'open' but parked in 'backlog'.
+      `ALTER TABLE task ADD COLUMN board_column TEXT NOT NULL DEFAULT 'backlog'`,
+      `ALTER TABLE task ADD COLUMN board_order REAL NOT NULL DEFAULT 0`,
+      `CREATE INDEX IF NOT EXISTS idx_task_board ON task (org_id, board_column, board_order)`,
+    ],
+  },
 ];
+
+/** Kanban lanes. Deliberately four: more columns invite bookkeeping. */
+export const BOARD_COLUMNS = ['backlog', 'ready', 'doing', 'done'] as const;
+export type BoardColumn = (typeof BOARD_COLUMNS)[number];
 
 export type Urgency = 'soft' | 'firm' | 'hard';
 export type TaskStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
@@ -243,5 +258,90 @@ function compareTool(a: Task, b: Task): number {
 export async function assign(ctx: ModuleContext, taskId: string, personId: string | null): Promise<void> {
   await ctx.store.run(
     `UPDATE task SET assigned_to = ? WHERE id = ? AND org_id = ?`, [personId, taskId, ctx.orgId],
+  );
+}
+
+
+// ------------------------------------------------------------------ kanban
+
+export interface BoardTask extends Task {
+  board_column: BoardColumn;
+  board_order: number;
+}
+
+/**
+ * The board, grouped by lane.
+ *
+ * `done` is capped: a board that accumulates every completed task since March
+ * becomes unreadable and slow, and the history lives in `observations` anyway.
+ */
+export async function board(
+  ctx: ModuleContext, opts: { doneLimit?: number } = {},
+): Promise<Record<BoardColumn, BoardTask[]>> {
+  const rows = await ctx.store.all<BoardTask>(
+    `SELECT * FROM task
+      WHERE org_id = ? AND status != 'cancelled'
+      ORDER BY board_order, created_at`,
+    [ctx.orgId],
+  );
+
+  const out: Record<BoardColumn, BoardTask[]> = {
+    backlog: [], ready: [], doing: [], done: [],
+  };
+  for (const t of rows) {
+    const col = (BOARD_COLUMNS as readonly string[]).includes(t.board_column)
+      ? t.board_column : 'backlog';
+    out[col].push(t);
+  }
+  out.done = out.done.slice(-(opts.doneLimit ?? 20));
+  return out;
+}
+
+/**
+ * Move a card. `beforeId`/`afterId` give the neighbours it was dropped between,
+ * so ordering is computed as a midpoint rather than renumbering every row.
+ */
+export async function moveTask(
+  ctx: ModuleContext,
+  input: { taskId: string; column: BoardColumn; beforeOrder?: number; afterOrder?: number },
+): Promise<void> {
+  const before = input.beforeOrder ?? null;
+  const after = input.afterOrder ?? null;
+
+  let order: number;
+  if (before !== null && after !== null) order = (before + after) / 2;
+  else if (before !== null) order = before + 1;
+  else if (after !== null) order = after - 1;
+  else order = Date.now() / 1000;
+
+  // Dropping into `done` completes the task; dragging it back reopens it.
+  const status = input.column === 'done' ? 'done' : 'open';
+  const completedAt = input.column === 'done' ? ctx.platform.clock.now().toISOString() : null;
+
+  await ctx.store.run(
+    `UPDATE task SET board_column = ?, board_order = ?, status = ?, completed_at = ?
+      WHERE id = ? AND org_id = ?`,
+    [input.column, order, status, completedAt, input.taskId, ctx.orgId],
+  );
+
+  if (input.column === 'done') {
+    const task = await ctx.store.first<Task>(
+      `SELECT * FROM task WHERE id = ? AND org_id = ?`, [input.taskId, ctx.orgId]);
+    if (task) {
+      // No assignee in the payload: the completion record is bed-scoped
+      // (ADR-0008), and dragging a card must not become person-tracking.
+      await ctx.emit('task.completed', {
+        taskId: task.id, bedId: task.bed_id, activity: task.activity,
+      });
+    }
+  }
+}
+
+export async function tasksForBed(ctx: ModuleContext, bedId: string): Promise<BoardTask[]> {
+  return ctx.store.all<BoardTask>(
+    `SELECT * FROM task
+      WHERE org_id = ? AND bed_id = ? AND status IN ('open', 'in_progress')
+      ORDER BY board_order`,
+    [ctx.orgId, bedId],
   );
 }

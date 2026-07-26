@@ -1,4 +1,5 @@
 import { el, mount, toast } from '../lib/ui.js';
+import { icon } from '../lib/icon.js';
 import { t } from '../lib/i18n.js';
 import { auth, post, ApiError } from '../lib/api.js';
 
@@ -52,7 +53,7 @@ export function renderAuth(root: HTMLElement, onDone: () => void): void {
     mount(root,
       el('div', { class: 'main', style: 'max-width:420px;padding-top:12vh' },
         el('div', { class: 'center', style: 'margin-bottom:2rem' },
-          el('div', { style: 'font-size:3rem' }, '\u{1F331}'),
+          el('div', { class: 'brand-mark', html: icon('seedling', 46) }),
           el('h1', { style: 'margin:.5rem 0 .25rem' }, t('app.name')),
           el('p', { class: 'muted' }, t('auth.tagline')),
         ),

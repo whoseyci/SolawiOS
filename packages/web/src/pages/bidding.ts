@@ -1,4 +1,5 @@
 import { el, mount, toast, spinner } from '../lib/ui.js';
+import { icon } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 import { ctx } from '../lib/session.js';
@@ -30,7 +31,7 @@ export function renderBidding(root: HTMLElement, projector = false): void {
     }
     if (!round) {
       mount(box, el('div', { class: 'empty' },
-        el('span', { class: 'ico' }, '\u{1F5F3}'), el('p', {}, t('bidding.noRound'))));
+        el('span', { html: icon('gavel', 34) }), el('p', {}, t('bidding.noRound'))));
       return;
     }
 

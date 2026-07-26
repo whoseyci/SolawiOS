@@ -1,4 +1,5 @@
-import { el, mount, sheet, toast, spinner, empty } from '../lib/ui.js';
+import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
+import { icon } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 
@@ -51,7 +52,7 @@ export function renderField(root: HTMLElement): void {
       staleBanner.style.display = bedRes.stale || plantRes.stale ? 'block' : 'none';
 
       if (beds.length === 0) {
-        mount(grid, empty('\u{1F33E}', t('field.noBeds'),
+        mount(grid, emptyIcon(icon('plant', 40), t('field.noBeds'),
           el('button', { class: 'btn btn-primary', onclick: setupSheet }, t('field.addField'))));
         return;
       }

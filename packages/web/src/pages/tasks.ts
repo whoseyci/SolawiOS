@@ -1,4 +1,5 @@
-import { el, mount, sheet, toast, spinner, empty } from '../lib/ui.js';
+import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
+import { icon } from '../lib/icon.js';
 import { t } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 
@@ -32,7 +33,7 @@ export function renderTasks(root: HTMLElement): void {
   }
 
   function showEmpty(): void {
-    mount(list, empty('\u{2705}', t('tasks.none'),
+    mount(list, emptyIcon(icon('check', 40), t('tasks.none'),
       el('button', { class: 'btn btn-primary', onclick: addSheet }, t('tasks.add'))));
   }
 

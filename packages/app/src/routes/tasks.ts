@@ -1,6 +1,9 @@
 import type { App } from '../app.js';
 import { requireOrg, requireRoleIn } from '../app.js';
-import { createTask, openTasks, completeTask, suggestSequence, assign } from '@solawi/module-tasks';
+import {
+  createTask, openTasks, completeTask, suggestSequence, assign,
+  board, moveTask, tasksForBed, BOARD_COLUMNS, type BoardColumn,
+} from '@solawi/module-tasks';
 import { listBeds } from '@solawi/module-land';
 
 export function taskRoutes(app: App): void {
@@ -76,5 +79,31 @@ export function taskRoutes(app: App): void {
     const ctx = c.get('kernel').contextFor(orgId, 'tasks', c.get('locale'));
     await assign(ctx, c.req.param('id'), personId);
     return c.json({ ok: true });
+  });
+
+  // ------------------------------------------------------------------ kanban
+
+  app.get('/api/tasks/board', async (c) => {
+    const { orgId } = requireOrg(c);
+    const ctx = c.get('kernel').contextFor(orgId, 'tasks', c.get('locale'));
+    return c.json({ board: await board(ctx), columns: BOARD_COLUMNS });
+  });
+
+  app.post('/api/tasks/:id/move', async (c) => {
+    const { orgId, roles } = requireOrg(c);
+    requireRoleIn(roles, 'member');
+    const body = await c.req.json<{
+      column: BoardColumn; beforeOrder?: number; afterOrder?: number;
+    }>();
+    const ctx = c.get('kernel').contextFor(orgId, 'tasks', c.get('locale'));
+    await moveTask(ctx, { taskId: c.req.param('id'), ...body });
+    return c.json({ ok: true });
+  });
+
+  /** Tasks attached to one bed — used by the map detail panel. */
+  app.get('/api/tasks/bed/:bedId', async (c) => {
+    const { orgId } = requireOrg(c);
+    const ctx = c.get('kernel').contextFor(orgId, 'tasks', c.get('locale'));
+    return c.json({ tasks: await tasksForBed(ctx, c.req.param('bedId')) });
   });
 }

@@ -1,11 +1,13 @@
 import './styles/app.css';
 import { el, mount } from './lib/ui.js';
+import { icon } from './lib/icon.js';
 import { t } from './lib/i18n.js';
 import { auth, online, flushOutbox, outboxCount } from './lib/api.js';
 import { loadCtx, ctx, invalidateCtx, can } from './lib/session.js';
 import { renderAuth, renderOrgPicker } from './pages/auth.js';
 import { renderHouseholdLink } from './pages/household.js';
-import { renderField } from './pages/field.js';
+import { renderMap } from './pages/map.js';
+import { renderBoard } from './pages/board.js';
 import { renderCrops } from './pages/crops.js';
 import { renderTasks } from './pages/tasks.js';
 import { renderMembers } from './pages/members.js';
@@ -21,6 +23,8 @@ const app = document.getElementById('app')!;
 interface Tab {
   id: string; icon: string; label: string;
   module?: string; role?: string;
+  /** Full-bleed screens (map, board) manage their own padding. */
+  flush?: boolean;
   render: (r: HTMLElement) => void;
 }
 
@@ -30,16 +34,16 @@ interface Tab {
  * rotation matrix (docs/00 §3).
  */
 const TABS: Tab[] = [
-  { id: 'field', icon: '\u{1F33F}', label: 'nav.field', module: 'land', render: renderField },
-  { id: 'crops', icon: '\u{1F955}', label: 'nav.crops', module: 'cultivation', role: 'grower', render: renderCrops },
-  { id: 'tasks', icon: '\u{2713}', label: 'nav.tasks', module: 'tasks', render: renderTasks },
-  { id: 'dist', icon: '\u{1F4E6}', label: 'nav.dist', module: 'distribution', render: renderDistribution },
-  { id: 'members', icon: '\u{1F465}', label: 'nav.members', module: 'members', render: renderMembers },
-  { id: 'inventory', icon: '\u{1F527}', label: 'nav.inventory', module: 'inventory', render: renderInventory },
-  { id: 'bidding', icon: '\u{1F5F3}', label: 'nav.bidding', module: 'bidding', render: (r) => renderBidding(r) },
-  { id: 'finance', icon: '\u{1F4B0}', label: 'nav.finance', module: 'finance', role: 'finance', render: renderFinance },
-  { id: 'founding', icon: '\u{1F331}', label: 'nav.founding', module: 'founding', render: renderFounding },
-  { id: 'more', icon: '\u{2699}', label: 'nav.settings', render: renderMore },
+  { id: 'map', icon: 'map', label: 'nav.map', module: 'land', render: renderMap, flush: true },
+  { id: 'board', icon: 'stack', label: 'nav.board', module: 'tasks', render: renderBoard, flush: true },
+  { id: 'crops', icon: 'carrot', label: 'nav.crops', module: 'cultivation', role: 'grower', render: renderCrops },
+  { id: 'dist', icon: 'package', label: 'nav.dist', module: 'distribution', render: renderDistribution },
+  { id: 'members', icon: 'users', label: 'nav.members', module: 'members', render: renderMembers },
+  { id: 'inventory', icon: 'wrench', label: 'nav.inventory', module: 'inventory', render: renderInventory },
+  { id: 'bidding', icon: 'gavel', label: 'nav.bidding', module: 'bidding', render: (r) => renderBidding(r) },
+  { id: 'finance', icon: 'coins', label: 'nav.finance', module: 'finance', role: 'finance', render: renderFinance },
+  { id: 'founding', icon: 'seedling', label: 'nav.founding', module: 'founding', render: renderFounding },
+  { id: 'more', icon: 'gear', label: 'nav.settings', render: renderMore },
 ];
 
 /** Phones fit about five; the rest live behind "More". */
@@ -91,7 +95,7 @@ function shell(): void {
     el('button', {
       class: 'btn btn-ghost', style: 'min-height:36px;padding:.2rem .6rem',
       title: t('feedback.title'), 'aria-label': t('feedback.title'), onclick: feedbackSheet,
-    }, '\u{2691}'),
+    }, el('span', { html: icon('flag', 18) })),
   );
 
   mount(app, topbar, offlineBanner, content, tabbar);
@@ -103,6 +107,7 @@ function shell(): void {
     if (!tab) return;
 
     title.textContent = t(tab.label);
+    content.className = tab.flush ? 'main main-flush' : 'main';
     mount(content);
     tab.render(content);
 
@@ -117,7 +122,7 @@ function shell(): void {
         class: tb.id === tab.id ? 'active' : '',
         'aria-current': tb.id === tab.id ? 'page' : undefined,
       },
-        el('span', { class: 'ico' }, tb.icon),
+        el('span', { html: icon(tb.icon, 22) }),
         el('span', {}, t(tb.label)),
       )));
   }

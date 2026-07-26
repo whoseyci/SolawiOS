@@ -1,4 +1,5 @@
 import type { SolawiModule, ModuleContext, Migration } from '@solawi/kernel';
+import { GEO_MIGRATIONS, type FeatureKind, type MapSettings } from './geo.js';
 
 /**
  * Module 3 — land (Flächen & Karte).
@@ -85,6 +86,7 @@ const MIGRATIONS: readonly Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_soil_field ON land_soil_sample (org_id, field_id, taken_on DESC)`,
     ],
   },
+  ...GEO_MIGRATIONS,
 ];
 
 export interface Field {
@@ -255,3 +257,109 @@ function extractRing(geometry: unknown): Array<[number, number]> | null {
 }
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+
+// ---------------------------------------------------------------- map view
+
+/**
+ * Where the map should open, and which base layer the farm prefers.
+ * Returns nulls when unset so the client can fall back to geolocation.
+ */
+export async function getMapSettings(ctx: ModuleContext): Promise<MapSettings> {
+  const row = await ctx.store.first<{
+    centre_lat: number | null; centre_lon: number | null; zoom: number; base_layer: string;
+  }>(`SELECT centre_lat, centre_lon, zoom, base_layer FROM land_map_settings WHERE org_id = ?`,
+    [ctx.orgId]);
+  return {
+    centreLat: row?.centre_lat ?? null,
+    centreLon: row?.centre_lon ?? null,
+    zoom: row?.zoom ?? 17,
+    baseLayer: (row?.base_layer as MapSettings['baseLayer']) ?? 'osm',
+  };
+}
+
+export async function setMapSettings(
+  ctx: ModuleContext,
+  input: { centreLat?: number; centreLon?: number; zoom?: number; baseLayer?: string },
+): Promise<void> {
+  const now = ctx.platform.clock.now().toISOString();
+  await ctx.store.run(
+    `INSERT INTO land_map_settings (org_id, centre_lat, centre_lon, zoom, base_layer, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (org_id) DO UPDATE SET
+       centre_lat = COALESCE(excluded.centre_lat, land_map_settings.centre_lat),
+       centre_lon = COALESCE(excluded.centre_lon, land_map_settings.centre_lon),
+       zoom       = excluded.zoom,
+       base_layer = excluded.base_layer,
+       updated_at = excluded.updated_at`,
+    [
+      ctx.orgId, input.centreLat ?? null, input.centreLon ?? null,
+      input.zoom ?? 17, input.baseLayer ?? 'osm', now,
+    ],
+  );
+}
+
+export interface MapFeature {
+  id: string; org_id: string; field_id: string | null;
+  kind: string; name: string; geometry: string | null;
+  note: string | null; colour: string | null; icon: string | null; created_at: string;
+}
+
+export async function createFeature(
+  ctx: ModuleContext,
+  input: {
+    kind: FeatureKind; name: string; geometry?: unknown;
+    fieldId?: string; note?: string; colour?: string; icon?: string;
+  },
+): Promise<MapFeature> {
+  const id = ctx.platform.crypto.randomUUID();
+  const now = ctx.platform.clock.now().toISOString();
+  const geometry = input.geometry ? JSON.stringify(input.geometry) : null;
+  await ctx.store.run(
+    `INSERT INTO land_feature (id, org_id, field_id, kind, name, geometry, note, colour, icon, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, ctx.orgId, input.fieldId ?? null, input.kind, input.name, geometry,
+     input.note ?? null, input.colour ?? null, input.icon ?? null, now],
+  );
+  return {
+    id, org_id: ctx.orgId, field_id: input.fieldId ?? null, kind: input.kind,
+    name: input.name, geometry, note: input.note ?? null,
+    colour: input.colour ?? null, icon: input.icon ?? null, created_at: now,
+  };
+}
+
+export async function listFeatures(ctx: ModuleContext): Promise<MapFeature[]> {
+  return ctx.store.all<MapFeature>(
+    `SELECT * FROM land_feature WHERE org_id = ? ORDER BY kind, name`, [ctx.orgId]);
+}
+
+export async function updateGeometry(
+  ctx: ModuleContext,
+  input: { table: 'field' | 'bed' | 'feature'; id: string; geometry: unknown },
+): Promise<void> {
+  const table = input.table === 'field' ? 'land_field'
+    : input.table === 'bed' ? 'land_bed' : 'land_feature';
+  const geometry = JSON.stringify(input.geometry);
+  const area = input.table === 'feature' ? null : polygonAreaSqm(input.geometry);
+
+  if (area !== null) {
+    await ctx.store.run(
+      `UPDATE ${table} SET geometry = ?, area_sqm = ? WHERE id = ? AND org_id = ?`,
+      [geometry, area, input.id, ctx.orgId]);
+  } else {
+    await ctx.store.run(
+      `UPDATE ${table} SET geometry = ? WHERE id = ? AND org_id = ?`,
+      [geometry, input.id, ctx.orgId]);
+  }
+}
+
+export async function deleteFeature(ctx: ModuleContext, id: string): Promise<void> {
+  await ctx.store.run(`DELETE FROM land_feature WHERE id = ? AND org_id = ?`, [id, ctx.orgId]);
+}
+
+export async function renameBed(ctx: ModuleContext, id: string, name: string): Promise<void> {
+  await ctx.store.run(`UPDATE land_bed SET name = ? WHERE id = ? AND org_id = ?`,
+    [name, id, ctx.orgId]);
+}
+
+export { FEATURE_KINDS, type FeatureKind, type MapSettings } from './geo.js';

@@ -149,6 +149,15 @@ export async function post<T>(path: string, body: unknown, opts: { queue?: boole
   }
 }
 
+export async function del<T>(path: string): Promise<T> {
+  const res = await fetch(path, { method: 'DELETE', headers: headers() });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(res.status, (payload as { error?: string }).error ?? `http_${res.status}`, payload);
+  }
+  return payload as T;
+}
+
 export async function outboxCount(): Promise<number> {
   return (await idbAll<QueuedWrite>('outbox').catch(() => [])).length;
 }

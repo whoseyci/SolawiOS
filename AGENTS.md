@@ -171,6 +171,21 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Map is now the main working view.** Leaflet with three switchable base
+  layers (OpenStreetMap, Esri satellite, OpenTopoMap — all keyless). Farms draw their own
+  fields, beds and features (shed, storage, greenhouse, water, compost, path, hedge,
+  parking, depot) by tapping corners; geometry is GeoJSON in a text column per ADR-0004 §3.
+  Beds are coloured by crop phase, carry a badge when work is outstanding, and open a detail
+  sheet with one-tap recording, the bed's rhythm, and its tasks. `GET /api/land/map` returns
+  settings, fields, beds, features, plantings and tasks in ONE request — the main view must
+  not open with a request waterfall. Tasks gained a **kanban board** (backlog/ready/doing/done)
+  with pointer-based drag and drop, because HTML5 DnD does not work on touch. Card order is
+  a midpoint between neighbours, so a drop never renumbers a lane; dropping into `done`
+  completes the task and emits a bed-scoped event with **no assignee** (ADR-0008).
+  **All emojis replaced** with inlined Phosphor SVG paths (~46 KB for 46 icons instead of a
+  6.1 MB font): emoji render differently per platform, cannot be recoloured to match state,
+  and align unpredictably. UI restyled — calmer palette, tighter type, real empty states.
+  52 tests.
 - `2026-07-25` — **Signup failed in production: Workers CPU limit.** The free plan allows
   **10 ms of CPU per request**; PBKDF2-SHA256 at 210 000 iterations costs ~63 ms, so every
   registration was killed with Error 1102. It passed every local test because

@@ -72,3 +72,11 @@ export function spinner(): HTMLElement {
 export function empty(icon: string, text: string, action?: HTMLElement): HTMLElement {
   return el('div', { class: 'empty' }, el('span', { class: 'ico' }, icon), el('p', {}, text), action);
 }
+
+/**
+ * Empty state with a Phosphor icon rather than an emoji.
+ * Takes the SVG markup so this module stays free of an icon-set dependency.
+ */
+export function emptyIcon(svg: string, text: string, action?: HTMLElement): HTMLElement {
+  return el('div', { class: 'empty' }, el('div', { html: svg }), el('p', {}, text), action);
+}

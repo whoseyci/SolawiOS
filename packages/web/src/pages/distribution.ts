@@ -1,4 +1,5 @@
-import { el, mount, sheet, toast, spinner, empty } from '../lib/ui.js';
+import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
+import { icon } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 import { can } from '../lib/session.js';
@@ -23,7 +24,7 @@ export function renderDistribution(root: HTMLElement): void {
     try {
       const { data } = await get<{ days: Day[] }>('/api/distribution/days');
       if (data.days.length === 0) {
-        mount(box, empty('\u{1F4E6}', t('dist.none'),
+        mount(box, emptyIcon(icon('package', 40), t('dist.none'),
           can('grower') ? el('button', { class: 'btn btn-primary', onclick: newDay }, t('dist.new')) : undefined));
         return;
       }
@@ -89,7 +90,7 @@ export function renderDistribution(root: HTMLElement): void {
                   }, { queue: true });
                   close(); void openDay(id);
                 },
-              }, done ? '\u{21BA}' : '\u{2713}'),
+              }, el('span', { html: icon(done ? 'arrow-counter' : 'check', 18) })),
             );
           }),
         ),
