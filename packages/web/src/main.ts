@@ -95,7 +95,7 @@ function shell(): void {
     el('button', {
       class: 'btn btn-ghost', style: 'min-height:36px;padding:.2rem .6rem',
       title: t('feedback.title'), 'aria-label': t('feedback.title'), onclick: feedbackSheet,
-    }, el('span', { html: icon('flag', 18) })),
+    }, icon('flag', 18)),
   );
 
   mount(app, topbar, offlineBanner, content, tabbar);
@@ -122,7 +122,7 @@ function shell(): void {
         class: tb.id === tab.id ? 'active' : '',
         'aria-current': tb.id === tab.id ? 'page' : undefined,
       },
-        el('span', { html: icon(tb.icon, 22) }),
+        icon(tb.icon, 22),
         el('span', {}, t(tb.label)),
       )));
   }

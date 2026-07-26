@@ -48,7 +48,7 @@ export function openBedDetail(bed: Bed, planting: Planting | null, onChange: () 
               planting.harvest_from && el('div', { class: 'muted' },
                 `${t('cultivation.harvestWindow')}: ${fmt.date(planting.harvest_from)}`),
             )
-          : el('div', { class: 'muted row' }, el('span', { html: icon('seedling', 18) }), t('field.free')),
+          : el('div', { class: 'muted row' }, icon('seedling', 18), t('field.free')),
         bed.area_sqm && el('div', { class: 'muted' }, `${fmt.num(bed.area_sqm, 1)} m²`),
       ),
 
@@ -63,7 +63,7 @@ export function openBedDetail(bed: Bed, planting: Planting | null, onChange: () 
             el('button', {
               class: 'action-btn',
               onclick: () => void record(act),
-            }, el('span', { html: icon(ic, 22) }), el('span', {}, t(`obs.${act}`))),
+            }, icon(ic, 22), el('span', {}, t(`obs.${act}`))),
           ),
         ),
         el('p', { class: 'hint' }, t('obs.privacy')),
@@ -83,7 +83,7 @@ export function openBedDetail(bed: Bed, planting: Planting | null, onChange: () 
           el('h3', {}, t('tasks.title')),
           can('grower') && el('button', {
             class: 'btn btn-sm', onclick: addTask,
-          }, el('span', { html: icon('plus', 14) }), t('tasks.add')),
+          }, icon('plus', 14), t('tasks.add')),
         ),
         tasks.length === 0
           ? el('p', { class: 'muted' }, t('tasks.none'))
@@ -106,7 +106,7 @@ export function openBedDetail(bed: Bed, planting: Planting | null, onChange: () 
             await post(`/api/tasks/${task.id}/move`, { column: 'done' }, { queue: true });
             toast(t('obs.saved')); await load(); onChange();
           },
-        }, el('span', { html: icon('check', 18) })),
+        }, icon('check', 18)),
       );
     }
   }

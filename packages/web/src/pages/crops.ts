@@ -1,5 +1,5 @@
 import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
-import { icon } from '../lib/icon.js';
+import { icon, iconMarkup } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post, ApiError } from '../lib/api.js';
 
@@ -38,7 +38,7 @@ export function renderCrops(root: HTMLElement): void {
           }, t('crops.plant')),
         ),
         c.crops.length === 0
-          ? emptyIcon(icon('carrot', 40), t('crops.none'))
+          ? emptyIcon(iconMarkup('carrot', 40), t('crops.none'))
           : el('div', { class: 'stack' }, ...c.crops.map((crop) => el('div', { class: 'card' },
               el('div', { class: 'row-between' },
                 el('div', {},

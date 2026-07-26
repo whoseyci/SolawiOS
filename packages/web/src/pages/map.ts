@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { el, mount, sheet, toast, spinner } from '../lib/ui.js';
-import { icon } from '../lib/icon.js';
+import { icon, iconMarkup } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post, del } from '../lib/api.js';
 import { can } from '../lib/session.js';
@@ -361,7 +361,7 @@ export function renderMap(root: HTMLElement): void {
         class: 'kind-btn',
         onclick: () => { close(); startDraw({ target: 'feature', kind: k }); },
       },
-        el('span', { class: 'kind-dot', style: `background:${FEATURE_STYLE[k]!.colour}`, html: icon(FEATURE_STYLE[k]!.icon, 18) }),
+        el('span', { class: 'kind-dot', style: `background:${FEATURE_STYLE[k]!.colour}`, html: iconMarkup(FEATURE_STYLE[k]!.icon, 18) }),
         el('span', {}, t(`feature.${k}`)),
       )),
     );

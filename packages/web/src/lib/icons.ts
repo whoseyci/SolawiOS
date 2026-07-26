@@ -5,8 +5,10 @@
  * inline just those paths instead. Emojis were replaced because they render
  * differently on every platform and cannot be recoloured or aligned.
  *
- * selection.json uses a 1024 grid with a flipped Y axis, so each path is drawn
- * inside a transform that scales to 256 and flips back.
+ * Paths come from selection.json on a 1024 grid and are used as-is. An earlier
+ * version wrapped them in a `scale(1,-1)` flip on the assumption the Y axis was
+ * inverted; rendering caret-down both ways proved that was wrong and turned
+ * every icon upside down.
  */
 
 const P: Record<string, string[]> = {
@@ -66,8 +68,7 @@ export function iconSvg(name: IconName, size = 20, cls = ''): string {
   if (!paths) return '';
   const body = paths.map((d) => `<path d="${d}"/>`).join('');
   return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 1024 1024" `
-    + `fill="currentColor" aria-hidden="true" focusable="false">`
-    + `<g transform="translate(0,896) scale(1,-1)">${body}</g></svg>`;
+    + `fill="currentColor" aria-hidden="true" focusable="false">${body}</svg>`;
 }
 
 export function hasIcon(name: string): boolean {

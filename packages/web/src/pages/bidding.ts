@@ -31,7 +31,7 @@ export function renderBidding(root: HTMLElement, projector = false): void {
     }
     if (!round) {
       mount(box, el('div', { class: 'empty' },
-        el('span', { html: icon('gavel', 34) }), el('p', {}, t('bidding.noRound'))));
+        icon('gavel', 34), el('p', {}, t('bidding.noRound'))));
       return;
     }
 

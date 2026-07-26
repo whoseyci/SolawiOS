@@ -50,7 +50,7 @@ export function renderBoard(root: HTMLElement): void {
               el('span', { class: 'board-count' }, String((board[col] ?? []).length)),
               col === 'backlog' && can('grower') && el('button', {
                 class: 'icon-btn', title: t('tasks.add'), onclick: addTask,
-              }, el('span', { html: icon('plus', 16) })),
+              }, icon('plus', 16)),
             ),
             list,
           );
@@ -78,7 +78,7 @@ export function renderBoard(root: HTMLElement): void {
   }
 
   const chip = (ic: string, label: string, cls = '') =>
-    el('span', { class: `chip ${cls}` }, el('span', { html: icon(ic, 12) }), el('span', {}, label));
+    el('span', { class: `chip ${cls}` }, icon(ic, 12), el('span', {}, label));
 
   /**
    * Pointer-based dragging: works with a finger, a mouse and a stylus alike.

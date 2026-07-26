@@ -87,6 +87,10 @@ jobs:
       - name: Password hashing fits the Workers CPU budget
         run: npx vitest run tests/password.test.ts
 
+      # Shipped upside-down icons, and raw SVG source rendering as page text.
+      - name: Icons render upright and are never inserted as text
+        run: npx vitest run tests/icons.test.ts
+
       # A grep is crude, but this specific mistake is easy to make and expensive
       # to discover later, so it is worth failing the build over.
       - name: Assert observations carry no person attribution

@@ -171,6 +171,15 @@ Update `AGENTS.md` when you:
 Append a line to the changelog below for anything beyond a typo fix.
 
 ### Changelog
+- `2026-07-26` — **Two icon bugs, both visible in one screenshot.** (a) Every icon rendered
+  upside down: I had wrapped the Phosphor paths in `scale(1,-1)`, assuming selection.json
+  used an inverted Y axis. Rendering `caret-down` both ways proved it does not — the flip
+  is gone. (b) Raw SVG markup appeared as text over the map, because `icon()` returned a
+  string and `el()` converts string children into text nodes. `icon()` now returns an
+  **element**; `iconMarkup()` is the string form and is only valid inside an `html:`
+  attribute. `tests/icons.test.ts` asserts no flip transform survives and greps every page
+  for `html: icon(` and misplaced `iconMarkup`. Map chrome also repositioned: the legend no
+  longer collides with Leaflet's zoom control and the drawing tools clear the tab bar.
 - `2026-07-26` — **Map is now the main working view.** Leaflet with three switchable base
   layers (OpenStreetMap, Esri satellite, OpenTopoMap — all keyless). Farms draw their own
   fields, beds and features (shed, storage, greenhouse, water, compost, path, hedge,

@@ -1,5 +1,5 @@
 import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
-import { icon } from '../lib/icon.js';
+import { icon, iconMarkup } from '../lib/icon.js';
 import { t, fmt } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 import { ctx } from '../lib/session.js';
@@ -33,7 +33,7 @@ export function renderMembers(root: HTMLElement): void {
         ),
         neighbourCard(),
         households.length === 0
-          ? emptyIcon(icon('users', 40), t('org.none'))
+          ? emptyIcon(iconMarkup('users', 40), t('org.none'))
           : el('div', { class: 'stack' }, ...households.map((h) =>
               el('div', { class: 'card' },
                 el('h3', {}, h.name),

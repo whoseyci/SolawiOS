@@ -185,7 +185,11 @@ html, body {
 .empty .ico { opacity: .5; margin-bottom: .5rem; }
 
 /* ------------------------------------------------------------------- MAP */
-.map-wrap { position: relative; height: calc(100dvh - 3.2rem - 4.2rem); width: 100%; }
+.map-wrap {
+  position: relative; width: 100%;
+  height: calc(100dvh - 3.4rem - 4.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: 320px;
+}
 .mapview { position: absolute; inset: 0; background: var(--line-2); }
 .leaflet-container { font-family: var(--font); background: var(--line-2); }
 .leaflet-control-attribution { font-size: 9px; opacity: .7; }
@@ -220,7 +224,7 @@ html, body {
 }
 .map-date-label { font-size: .78rem; font-weight: 650; padding: 0 .35rem; min-width: 4.2rem; text-align: center; }
 
-.map-tools { position: absolute; bottom: .7rem; left: .6rem; right: 4rem; }
+.map-tools { position: absolute; bottom: 3.1rem; left: .6rem; right: .6rem; }
 .tool-row { display: flex; gap: .4rem; flex-wrap: wrap; }
 .tool-btn {
   display: inline-flex; align-items: center; gap: .35rem;
@@ -230,7 +234,10 @@ html, body {
   font-weight: 600; cursor: pointer;
 }
 .tool-btn:hover { border-color: var(--green-600); color: var(--green-700); }
-@media (max-width: 560px) { .tool-btn span:not(.ico-wrap) { display: none; } }
+@media (max-width: 600px) {
+  .tool-btn span:not(.ico-wrap) { display: none; }
+  .tool-btn { padding: .5rem; min-width: 42px; justify-content: center; }
+}
 
 .draw-hint {
   display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
@@ -240,10 +247,14 @@ html, body {
 .draw-hint .btn { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); color: #fff; }
 
 .map-legend {
-  position: absolute; bottom: .7rem; right: .6rem; z-index: 450;
+  position: absolute; bottom: .6rem; left: .6rem; z-index: 400;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: .4rem .55rem; box-shadow: var(--sh-2); font-size: .7rem; max-width: 45vw;
+  padding: .35rem .5rem; box-shadow: var(--sh-2); font-size: .66rem;
+  max-width: calc(100% - 5.5rem); pointer-events: none;
 }
+/* Zoom sits bottom-right, so the legend stays left and the drawing tools move
+   above both rather than fighting them for the same corner. */
+.leaflet-bottom.leaflet-right { bottom: .4rem; right: .4rem; }
 .legend-row { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
 .legend-row + .legend-row { margin-top: .25rem; }
 .legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -371,3 +382,11 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+
+/* An icon element renders its SVG; it must never lay out as flowing text. */
+.ico-wrap { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ico-wrap > svg { display: block; }
+
+.brand-mark { display: flex; justify-content: center; color: var(--green-700); }
+.brand-mark svg { display: block; }

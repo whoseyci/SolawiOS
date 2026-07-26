@@ -1,25 +1,30 @@
 import { iconSvg, hasIcon } from './icons.js';
-import { el } from './ui.js';
 
 /**
  * Icon helper.
  *
  * Emojis were removed throughout: they render differently on every platform,
- * cannot be recoloured to match state, and align inconsistently inside buttons.
- * These are Phosphor paths inlined at build time (see lib/icons.ts).
+ * cannot be recoloured to match state, and align inconsistently in buttons.
+ *
+ * `icon()` returns an ELEMENT, not a string. That is deliberate: an earlier
+ * version returned markup, and every call site that passed it as a child of
+ * `el()` had the SVG source rendered as visible text, because `el()` turns
+ * string children into text nodes. Returning a node makes that mistake
+ * impossible and lets TypeScript catch the remaining `html:` usages.
  */
-
-/** Returns an SVG string, for use with the `html` attribute or innerHTML. */
-export function icon(name: string, size = 20, cls = ''): string {
+export function icon(name: string, size = 20, cls = ''): HTMLElement {
+  const span = document.createElement('span');
+  span.className = 'ico-wrap';
   if (!hasIcon(name)) {
     // Warn rather than render an invisible gap; a missing icon is a typo.
     console.warn(`[icon] unknown: ${name}`);
-    return '';
+    return span;
   }
-  return iconSvg(name, size, cls);
+  span.innerHTML = iconSvg(name, size, cls);
+  return span;
 }
 
-/** Returns an element, for places that take nodes rather than markup. */
-export function iconEl(name: string, size = 20, cls = ''): HTMLElement {
-  return el('span', { class: 'ico-wrap', html: icon(name, size, cls) });
+/** Raw markup, for the few places that genuinely need a string. */
+export function iconMarkup(name: string, size = 20, cls = ''): string {
+  return hasIcon(name) ? iconSvg(name, size, cls) : '';
 }

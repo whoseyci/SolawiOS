@@ -1,5 +1,5 @@
 import { el, mount, sheet, toast, spinner, emptyIcon } from '../lib/ui.js';
-import { icon } from '../lib/icon.js';
+import { icon, iconMarkup } from '../lib/icon.js';
 import { t } from '../lib/i18n.js';
 import { get, post } from '../lib/api.js';
 import { ctx } from '../lib/session.js';
@@ -18,7 +18,7 @@ export function renderInventory(root: HTMLElement): void {
     try {
       const { data } = await get<{ items: Item[] }>('/api/inventory');
       if (data.items.length === 0) {
-        mount(box, emptyIcon(icon('wrench', 40), t('inv.none'),
+        mount(box, emptyIcon(iconMarkup('wrench', 40), t('inv.none'),
           el('button', { class: 'btn btn-primary', onclick: addSheet }, t('inv.add'))));
         return;
       }
